@@ -132,5 +132,5 @@ One work-unit commit per task on the feature branch, Conventional Commits, tests
 | T1 | `e852556` | `pnpm install`, `pnpm -r typecheck` 4/4, `pnpm test` 11 files / 63 tests — pass |
 | T2 | `e40b6c9` | `pnpm -r typecheck` 5/5, `pnpm test` 15 files / 105 tests, `pnpm build`, `pnpm check`; built binary fails fast without key, serves `/healthz`, exits 0 on SIGTERM |
 | T3 | pending | pending |
-| T4 | pending | pending |
-| T5 | pending | pending |
+| T4 | `19e179c` | Second pass: stack up end to end, both models cached, streamed LLM from inside the container, TTS 14,904 B mp3, STT 200, `agent.llm_reachable`, negative probe fires once — pass |
+| T5 | pending | Partially accepted: streaming, synthesis and abort proven; live turn blocked by VAD seeing idle RMS 0.04–0.25 against a 0.030 speech threshold. Evidence in `odd/tasks/t5-acceptance-evidence.md` |

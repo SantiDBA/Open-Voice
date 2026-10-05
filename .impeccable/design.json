@@ -1,0 +1,351 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2025-10-05T00:00:00Z",
+  "title": "Design System: Open Voice — Catálogo de fábrica",
+  "extensions": {
+    "colorMeta": {
+      "ground": {
+        "role": "neutral",
+        "displayName": "Matte Black",
+        "canonical": "#000000",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel Void",
+        "canonical": "hsl(0, 0%, 10%)",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "border": {
+        "role": "neutral",
+        "displayName": "Hairline Divider",
+        "canonical": "hsl(0, 0%, 20%)",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Plot Ink",
+        "canonical": "hsl(0, 0%, 80%)",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "text-primary": {
+        "role": "neutral",
+        "displayName": "Plotter White",
+        "canonical": "hsl(0, 0%, 95%)",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Etched Gray",
+        "canonical": "hsl(0, 0%, 70%)",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "surface-hover": {
+        "role": "neutral",
+        "displayName": "Panel Hover Step",
+        "canonical": "hsl(0, 0%, 15%)",
+        "tonalRamp": ["#262626", "#4c4c4c", "#737373", "#8c8c8c", "#a6a6a6", "#bfbfbf", "#d9d9d9", "#f2f2f2"]
+      },
+      "phase-transcribing": {
+        "role": "primary",
+        "displayName": "Signal Blue",
+        "canonical": "hsl(210, 80%, 50%)",
+        "tonalRamp": ["oklch(15% 0.144 210)", "oklch(30% 0.144 210)", "oklch(45% 0.144 210)", "oklch(55% 0.144 210)", "oklch(65% 0.144 210)", "oklch(75% 0.144 210)", "oklch(85% 0.144 210)", "oklch(95% 0.144 210)"],
+        "note": "Microphone capturing. 5.27:1 on ground, 4.37:1 on panel — check the surface under it."
+      },
+      "phase-thinking": {
+        "role": "secondary",
+        "displayName": "Amber Signal",
+        "canonical": "hsl(50, 80%, 50%)",
+        "tonalRamp": ["oklch(15% 0.116 50)", "oklch(30% 0.116 50)", "oklch(45% 0.116 50)", "oklch(55% 0.116 50)", "oklch(65% 0.116 50)", "oklch(75% 0.116 50)", "oklch(85% 0.116 50)", "oklch(95% 0.116 50)"],
+        "note": "Model streaming, no audio yet. Also the active-entry border and the focus outline."
+      },
+      "phase-speaking": {
+        "role": "secondary",
+        "displayName": "Bone",
+        "canonical": "hsl(40, 60%, 80%)",
+        "tonalRamp": ["oklch(15% 0.108 40)", "oklch(30% 0.108 40)", "oklch(45% 0.108 40)", "oklch(55% 0.108 40)", "oklch(65% 0.108 40)", "oklch(75% 0.108 40)", "oklch(85% 0.108 40)", "oklch(95% 0.108 40)"],
+        "note": "Synthesized audio playing. The warmest and quietest code in the set."
+      },
+      "phase-idle": {
+        "role": "tertiary",
+        "displayName": "Steel Grey",
+        "canonical": "hsl(210, 10%, 40%)",
+        "tonalRamp": ["oklch(15% 0.019 210)", "oklch(30% 0.019 210)", "oklch(45% 0.019 210)", "oklch(55% 0.019 210)", "oklch(65% 0.019 210)", "oklch(75% 0.019 210)", "oklch(85% 0.019 210)", "oklch(95% 0.019 210)"],
+        "note": "Nothing is happening. Desaturated so idleness reads as absence of signal."
+      },
+      "phase-cut": {
+        "role": "tertiary",
+        "displayName": "Cut Red",
+        "canonical": "hsl(0, 80%, 50%)",
+        "tonalRamp": ["oklch(15% 0.188 0)", "oklch(30% 0.188 0)", "oklch(45% 0.188 0)", "oklch(55% 0.188 0)", "oklch(65% 0.188 0)", "oklch(75% 0.188 0)", "oklch(85% 0.188 0)", "oklch(95% 0.188 0)"],
+        "note": "Reserved for an interruption or a stopped playback. Never decoration."
+      },
+      "cut-deep": {
+        "role": "tertiary",
+        "displayName": "Cut Red, Pressed",
+        "canonical": "hsl(0, 80%, 40%)",
+        "tonalRamp": ["oklch(15% 0.152 0)", "oklch(30% 0.152 0)", "oklch(45% 0.152 0)", "oklch(55% 0.152 0)", "oklch(65% 0.152 0)", "oklch(75% 0.152 0)", "oklch(85% 0.152 0)", "oklch(95% 0.152 0)"]
+      },
+      "notice-surface": {
+        "role": "neutral",
+        "displayName": "Notice Surface",
+        "canonical": "hsl(210, 20%, 15%)",
+        "tonalRamp": ["oklch(15% 0.020 210)", "oklch(30% 0.020 210)", "oklch(45% 0.020 210)", "oklch(55% 0.020 210)", "oklch(65% 0.020 210)", "oklch(75% 0.020 210)", "oklch(85% 0.020 210)", "oklch(95% 0.020 210)"]
+      },
+      "notice-ink": {
+        "role": "neutral",
+        "displayName": "Notice Ink",
+        "canonical": "hsl(210, 70%, 80%)",
+        "tonalRamp": ["oklch(15% 0.095 210)", "oklch(30% 0.095 210)", "oklch(45% 0.095 210)", "oklch(55% 0.095 210)", "oklch(65% 0.095 210)", "oklch(75% 0.095 210)", "oklch(85% 0.095 210)", "oklch(95% 0.095 210)"]
+      },
+      "notice-border": {
+        "role": "neutral",
+        "displayName": "Notice Hairline",
+        "canonical": "hsl(210, 50%, 30%)",
+        "tonalRamp": ["oklch(15% 0.063 210)", "oklch(30% 0.063 210)", "oklch(45% 0.063 210)", "oklch(55% 0.063 210)", "oklch(65% 0.063 210)", "oklch(75% 0.063 210)", "oklch(85% 0.063 210)", "oklch(95% 0.063 210)"]
+      },
+      "error-surface": {
+        "role": "neutral",
+        "displayName": "Error Surface",
+        "canonical": "hsl(0, 50%, 15%)",
+        "tonalRamp": ["oklch(15% 0.021 0)", "oklch(30% 0.021 0)", "oklch(45% 0.021 0)", "oklch(55% 0.021 0)", "oklch(65% 0.021 0)", "oklch(75% 0.021 0)", "oklch(85% 0.021 0)", "oklch(95% 0.021 0)"]
+      },
+      "error-ink": {
+        "role": "neutral",
+        "displayName": "Error Ink",
+        "canonical": "hsl(0, 70%, 70%)",
+        "tonalRamp": ["oklch(15% 0.146 0)", "oklch(30% 0.146 0)", "oklch(45% 0.146 0)", "oklch(55% 0.146 0)", "oklch(65% 0.146 0)", "oklch(75% 0.146 0)", "oklch(85% 0.146 0)", "oklch(95% 0.146 0)"]
+      },
+      "error-border": {
+        "role": "neutral",
+        "displayName": "Error Hairline",
+        "canonical": "hsl(0, 50%, 30%)",
+        "tonalRamp": ["oklch(15% 0.062 0)", "oklch(30% 0.062 0)", "oklch(45% 0.062 0)", "oklch(55% 0.062 0)", "oklch(65% 0.062 0)", "oklch(75% 0.062 0)", "oklch(85% 0.062 0)", "oklch(95% 0.062 0)"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The product name, once, in the header. Never reused as a section heading."
+      },
+      "readout": {
+        "displayName": "Entry Readout",
+        "purpose": "The current entry's FAC number at 5rem. The world's real headline."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Document default, the header subtitle, and the composer text input."
+      },
+      "label": {
+        "displayName": "Engraved Label",
+        "purpose": "Uppercase system caps: language mark, column heading, panel headings, Send."
+      },
+      "caption": {
+        "displayName": "Caption",
+        "purpose": "Instrumentation terms and panel status text. Read, not engraved — never uppercase."
+      },
+      "preview": {
+        "displayName": "Catalog Preview",
+        "purpose": "The truncated entry preview in the index."
+      },
+      "composer-control": {
+        "displayName": "Composer Control",
+        "purpose": "Mono, uppercase, 0.08em tracking. Every composer button label."
+      },
+      "mono-meta": {
+        "displayName": "Mono Meta",
+        "purpose": "The empty-index message."
+      },
+      "mono-number": {
+        "displayName": "Mono Number",
+        "purpose": "Every latency value and the FAC column, with tabular figures so columns align."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "ease-signal",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "source": "apps/web/app/globals.css",
+        "purpose": "The catalog index and composer controls: 160ms on color and border-color. A signal settling, not a bounce."
+      },
+      {
+        "name": "ease-surface",
+        "value": "ease",
+        "source": "apps/web/app/globals.css",
+        "purpose": "200ms on background-color and color for hover fills."
+      },
+      {
+        "name": "plot-signal",
+        "value": "setInterval(updatePlotData, 16)",
+        "source": "apps/web/app/page.tsx",
+        "purpose": "The plot samples real microphone RMS every 16ms (~60fps). The sweep advances by 0.004 + level*0.09 radians per sample, so shape encodes amplitude rather than a constant rotation."
+      },
+      {
+        "name": "motion-off",
+        "value": "(prefers-reduced-motion: reduce)",
+        "source": "apps/web/app/page.tsx",
+        "purpose": "Cancels the animation frame entirely and stops sampling. The plot keeps its static hairline grid only."
+      }
+    ],
+    "breakpoints": [
+      { "name": "stack", "value": "1024px" },
+      { "name": "stack-compact", "value": "900px" },
+      { "name": "single-column", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Send Button",
+      "kind": "button",
+      "refersTo": "button-submit",
+      "description": "The composer submit control. The only filled-inverted button in the system; on hover it loses the fill rather than brightening.",
+      "html": "<button class=\"ds-btn-submit\" type=\"button\">SEND</button>",
+      "css": ".ds-btn-submit { background-color: hsl(0, 0%, 95%); color: #000000; border: 1px solid hsl(0, 0%, 20%); border-radius: 0; padding: 0.75rem 1.5rem; font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease; } .ds-btn-submit:hover:not(:disabled), .ds-btn-submit:focus-visible:not(:disabled) { background-color: hsl(0, 0%, 10%); color: hsl(0, 0%, 95%); } .ds-btn-submit:focus-visible { outline: 1px solid hsl(50, 80%, 50%); outline-offset: 2px; } .ds-btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Secondary Button",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Resting state for Live-off, Stop and Reconnect now. One tonal step on hover, never a shadow.",
+      "html": "<button class=\"ds-btn-secondary\" type=\"button\">STOP</button>",
+      "css": ".ds-btn-secondary { background-color: hsl(0, 0%, 10%); color: hsl(0, 0%, 95%); border: 1px solid hsl(0, 0%, 20%); border-radius: 0; padding: 0.75rem 1.5rem; font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease; } .ds-btn-secondary:hover:not(:disabled), .ds-btn-secondary:focus-visible:not(:disabled) { background-color: hsl(0, 0%, 15%); color: hsl(0, 0%, 95%); } .ds-btn-secondary:focus-visible { outline: 1px solid hsl(50, 80%, 50%); outline-offset: 2px; } .ds-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Live Button (open microphone)",
+      "kind": "button",
+      "refersTo": "button-live-on",
+      "description": "The one control that is legitimately red: the microphone is open. Hover steps the red down, never up.",
+      "html": "<button class=\"ds-btn-live-on\" type=\"button\">LIVE ON</button>",
+      "css": ".ds-btn-live-on { background-color: hsl(0, 80%, 50%); color: hsl(0, 0%, 95%); border: 1px solid hsl(0, 0%, 20%); border-radius: 0; padding: 0.75rem 1.5rem; font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease; } .ds-btn-live-on:hover:not(:disabled), .ds-btn-live-on:focus-visible:not(:disabled) { background-color: hsl(0, 80%, 40%); color: hsl(0, 0%, 95%); } .ds-btn-live-on:focus-visible { outline: 1px solid hsl(50, 80%, 50%); outline-offset: 2px; } .ds-btn-live-on:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Recording Button",
+      "kind": "button",
+      "refersTo": "button-recording",
+      "description": "Push-to-talk while the button is held. Visually identical to Live: red means audio is being captured, whichever control opened it.",
+      "html": "<button class=\"ds-btn-recording\" type=\"button\">RELEASE</button>",
+      "css": ".ds-btn-recording { background-color: hsl(0, 80%, 50%); color: hsl(0, 0%, 95%); border: 1px solid hsl(0, 0%, 20%); border-radius: 0; padding: 0.75rem 1.5rem; font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; cursor: pointer; transition: background-color 0.2s ease, color 0.2s ease; } .ds-btn-recording:hover:not(:disabled), .ds-btn-recording:focus-visible:not(:disabled) { background-color: hsl(0, 80%, 40%); color: hsl(0, 0%, 95%); } .ds-btn-recording:focus-visible { outline: 1px solid hsl(50, 80%, 50%); outline-offset: 2px; } .ds-btn-recording:disabled { opacity: 0.5; cursor: not-allowed; }"
+    },
+    {
+      "name": "Message Field",
+      "kind": "input",
+      "refersTo": "input-message",
+      "description": "The required text path. Square, on the panel ground, with the selection and caret pulled into the palette.",
+      "html": "<input class=\"ds-input\" aria-label=\"Message\" placeholder=\"TYPE A MESSAGE\" />",
+      "css": ".ds-input { background-color: hsl(0, 0%, 10%); color: hsl(0, 0%, 95%); border: 1px solid hsl(0, 0%, 20%); border-radius: 0; padding: 0.75rem 1rem; min-width: 0; font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 1.125rem; line-height: 1.5; caret-color: hsl(0, 0%, 95%); } .ds-input::placeholder { color: hsl(0, 0%, 70%); } .ds-input::selection { background-color: hsl(210, 80%, 50%); color: #000000; }"
+    },
+    {
+      "name": "Catalog Entry",
+      "kind": "nav",
+      "refersTo": "nav-entry",
+      "description": "One numbered turn in the left index. Marked by a left border when active, and struck permanently when cut.",
+      "html": "<button class=\"ds-nav-entry\" type=\"button\"><span class=\"ds-nav-fac\">007</span><span class=\"ds-nav-preview\">The agent's answer to entry seven</span></button><button class=\"ds-nav-entry ds-nav-active\" type=\"button\"><span class=\"ds-nav-fac\">008</span><span class=\"ds-nav-preview\">Current entry</span></button><button class=\"ds-nav-entry ds-nav-cut\" type=\"button\"><span class=\"ds-nav-fac\">009</span><span class=\"ds-nav-preview\">Interrupted before it finished</span></button>",
+      "css": ".ds-nav-entry { display: grid; grid-template-columns: 3.25rem 1fr; align-items: baseline; gap: 0.75rem; width: 100%; padding: 0.5rem 0.625rem; text-align: left; background: transparent; border: 0; border-left: 1px solid transparent; border-radius: 0; color: hsl(0, 0%, 70%); font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.8125rem; cursor: pointer; transition: color 160ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-nav-entry:hover { color: hsl(0, 0%, 80%); } .ds-nav-entry:focus-visible { outline: 1px solid hsl(50, 80%, 50%); outline-offset: 2px; } .ds-nav-fac { font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.8125rem; font-weight: 400; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; } .ds-nav-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-nav-active { color: hsl(0, 0%, 80%); border-left-color: hsl(50, 80%, 50%); } .ds-nav-cut .ds-nav-preview { text-decoration: line-through; text-decoration-color: hsl(0, 80%, 50%); text-decoration-thickness: 1px; } .ds-nav-cut .ds-nav-fac { color: hsl(0, 80%, 50%); }"
+    },
+    {
+      "name": "Status Pill",
+      "kind": "chip",
+      "refersTo": "status-connected",
+      "description": "Connection state, engraved and square. Colour does the work; the word confirms it.",
+      "html": "<div class=\"ds-status\">CONNECTED</div>",
+      "css": ".ds-status { display: inline-flex; align-items: center; justify-content: center; min-width: 96px; padding: 0.5rem 0.75rem; background: transparent; border: 1px solid hsl(210, 80%, 50%); border-radius: 0; color: hsl(210, 80%, 50%); font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; }"
+    },
+    {
+      "name": "Entry Readout",
+      "kind": "card",
+      "refersTo": "readout-fac",
+      "description": "The right rail's top block: FAC number, the 4px colour-code strip, the language mark and the tabular timings.",
+      "html": "<div class=\"ds-readout\"><div class=\"ds-readout-fac\">008</div><div class=\"ds-strip ds-strip-transcribing\"></div><div class=\"ds-lang\">ES</div><div class=\"ds-timings\"><div><span>STT</span><b>142 ms</b></div><div><span>LLM</span><b>318 ms</b></div><div><span>TTS</span><b>204 ms</b></div><div><span>TOTAL</span><b>664 ms</b></div></div></div>",
+      "css": ".ds-readout { background: transparent; } .ds-readout-fac { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 5rem; font-weight: 600; line-height: 1; letter-spacing: -0.03em; color: hsl(0, 0%, 95%); margin: 0 0 0.5rem 0; } .ds-strip { height: 4px; width: 100%; margin: 1rem 0; border-radius: 0; background-color: hsl(210, 10%, 40%); } .ds-strip-transcribing { background-color: hsl(210, 80%, 50%); } .ds-lang { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: hsl(0, 0%, 70%); margin: 0.5rem 0; } .ds-timings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem 1rem; } .ds-timings div { display: flex; justify-content: space-between; gap: 0.5rem; } .ds-timings span { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; color: hsl(0, 0%, 70%); } .ds-timings b { font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.75rem; font-weight: 400; font-variant-numeric: tabular-nums; color: hsl(0, 0%, 95%); }"
+    },
+    {
+      "name": "Instrumentation Panel",
+      "kind": "card",
+      "refersTo": "latency-panel",
+      "description": "One quiet panel of tabular measurements. Always present, never a modal; unmeasured values are an em dash.",
+      "html": "<section class=\"ds-panel\"><div class=\"ds-panel-heading\"><strong>LATENCY</strong><span>LIVE · ACTIVE</span></div><dl class=\"ds-panel-body\"><div><dt>STT FIRST PARTIAL</dt><dd>142 ms</dd></div><div><dt>FINAL TRANSCRIPT</dt><dd>486 ms</dd></div><div><dt>LLM FIRST TOKEN</dt><dd>318 ms</dd></div><div><dt>TTS FIRST AUDIO</dt><dd>—</dd></div></dl></section>",
+      "css": ".ds-panel { background-color: hsl(0, 0%, 10%); border: 1px solid hsl(0, 0%, 20%); border-radius: 0; overflow: hidden; } .ds-panel-heading { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.75rem; border-bottom: 1px solid hsl(0, 0%, 20%); font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; color: hsl(0, 0%, 95%); } .ds-panel-heading span { font-size: 0.75rem; font-weight: 400; color: hsl(0, 0%, 70%); } .ds-panel-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem; margin: 0; padding: 0.75rem; } .ds-panel-body > div { background-color: hsl(0, 0%, 10%); border-radius: 0; padding: 0.5rem; } .ds-panel-body dt { font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; font-weight: 400; color: hsl(0, 0%, 70%); } .ds-panel-body dd { font-family: 'Azeret Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.75rem; font-weight: 400; font-variant-numeric: tabular-nums; color: hsl(0, 0%, 95%); margin: 0; }"
+    },
+    {
+      "name": "Agent Presence Plot",
+      "kind": "custom",
+      "refersTo": "color-strip",
+      "description": "The signature component: a one-pixel hairline radar plot drawn from real microphone RMS. When there is no signal it rests at the baseline and draws nothing. Use the live app to see it move — this snapshot is the resting state.",
+      "html": "<div class=\"ds-plot\">008</div><script>(function(){var c=document.querySelector('.ds-plot canvas');if(!c)return;var ctx=c.getContext('2d');ctx.strokeStyle='hsl(0, 0%, 80%)';ctx.lineWidth=1;var w=c.width,h=c.height,cx=w/2,cy=h/2,r=Math.min(cx,cy);for(var i=1;i<=4;i++){ctx.beginPath();ctx.arc(cx,cy,(r/4)*i,0,Math.PI*2);ctx.stroke();}for(var j=0;j<12;j++){var a=(j*Math.PI*2)/12;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*r,cy+Math.sin(a)*r);ctx.stroke();}})();</script>",
+      "css": ".ds-plot { position: relative; width: 100%; aspect-ratio: 4 / 3; background-color: #000000; overflow: hidden; } .ds-plot canvas { display: block; width: 100%; height: 100%; } .ds-plot-label { position: absolute; left: 1.5rem; bottom: 1.5rem; font-family: Archivo, ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 500; letter-spacing: 0.05em; text-transform: uppercase; color: hsl(0, 0%, 70%); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Factory Catalog",
+    "overview": "This world treats a conversation as a numbered factory catalog. Every turn is an entry with a FAC number; the agent's presence is not a widget in a corner but the work area itself, drawn as a hairline radar plot from real microphone amplitude. State is spoken in an industrial color code rather than in words, and system text is engraved into the page as tracked capitals. The ground is matte black and the plot ink is one pixel wide, so most of the screen is deliberately unprinted. The design is dense rather than explanatory: the user already knows the product, and the interface's job is to prove what just happened, measured.\n\nTwo category defaults are refused. There are no chat bubbles and no round microphone button — an answer is the entry under the current number, not a speech balloon. And there is no neon sci-fi HUD: nothing glows, nothing is translucent, nothing casts a shadow. Depth is a two-step tonal floor between black and a very dark gray panel. The interface is a sheet of plotted paper, not a head-up display.",
+    "keyCharacteristics": [
+      "Matte black ground with one hairline of plot ink; the emptiness is the composition.",
+      "One colour per product state, with red reserved exclusively for an interruption.",
+      "Engraved tracked capitals for every system word; tabular monospace for every number.",
+      "Zero corner radius on any control, panel, strip or readout.",
+      "The plot is driven by real amplitude and rests at the baseline when there is no signal to read.",
+      "Depth is tonal (two steps), never shadow, blur or translucency.",
+      "An interruption is permanent: the entry is struck and stays struck in the index."
+    ],
+    "rules": [
+      {
+        "name": "The One Colour Per State Rule",
+        "body": "Every product state owns exactly one colour, and the same colour must never mean two things. A new state means a new token, not a second use of an existing one. The strip in the right rail is the only place the current phase's colour appears as a large fill.",
+        "section": "colors"
+      },
+      {
+        "name": "The Red Is Not A Button Rule",
+        "body": "Red is reserved for a cut. A cut is a fact about the conversation, so it is permanent: the entry is struck through with a one-pixel red line, the FAC turns red, and both stay struck for the life of the session. Nothing transient, decorative, or merely loud may be red.",
+        "section": "colors"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Lines are one physical pixel and --color-border. Thickness is not a way to express importance; position and colour are.",
+        "section": "colors"
+      },
+      {
+        "name": "The Engraved Rule",
+        "body": "System text is uppercase with wide tracking (0.05em for Archivo labels, 0.08em for monospace control labels). Sentence case is reserved for content that came from speech or from the user.",
+        "section": "typography"
+      },
+      {
+        "name": "The Numbering Rule",
+        "body": "Every number is set in Azeret Mono with font-variant-numeric: tabular-nums, and FAC numbers are zero-padded to three digits (007, not 7) so the column does not reflow as the catalog grows. Never style a numeral in the display face.",
+        "section": "typography"
+      },
+      {
+        "name": "The Flat-By-Default Rule",
+        "body": "Surfaces are flat at rest. Nothing hovers above the page until the pointer or the state asks for it, and even then the change is a fill, not a shadow. If a new surface needs to read as raised, add a tone or a hairline — never a shadow.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Two-Tone Rule",
+        "body": "There are exactly two ground values in the interface: #000000 for the field and the shell, hsl(0, 0%, 10%) for panels. A third background tone is a new design decision, not an implementation detail.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do give a product state exactly one colour and carry it on the colour-code strip, then let the label do the explaining.",
+      "Do reserve Cut Red for an interruption or an open microphone, and keep the strike permanent once a turn has been cut.",
+      "Do set every number in Azeret Mono with font-variant-numeric: tabular-nums, zero-padded to three digits for FAC numbers.",
+      "Do write system text in uppercase with wide tracking (0.05em Archivo, 0.08em monospace), and reserve sentence case for words the user or the agent said.",
+      "Do let the plot rest at the baseline when there is no real signal, and drive its sweep from amplitude rather than from a clock.",
+      "Do separate regions with a one-pixel --color-border line and the two ground tones.",
+      "Do show an em dash for an unmeasured value instead of a zero or a spinner.",
+      "Do show only the states the backend can actually produce: idle, transcribing, thinking, speaking, and cut. The product must never imply a capability the backend lacks."
+    ],
+    "donts": [
+      "Don't add corner radius to anything. The only rounded thing in the system is the browser's scrollbar thumb.",
+      "Don't add a shadow, a glow, a gradient, a blur or a translucent overlay to express depth, hover, focus or importance.",
+      "Don't reuse a state colour for a second meaning, or reach for a phase colour as decoration or as a large fill outside the one-pixel or 4px marks it belongs in.",
+      "Don't use red for anything that is not a cut or an open microphone — not errors in general, not hover, not emphasis.",
+      "Don't animate the plot from a constant rotation, a random walk, or a synthetic waveform. If there is no signal, the field stays flat.",
+      "Don't render the conversation as chat bubbles, or the microphone as a round button. An answer is the entry under the current FAC number.",
+      "Don't turn instrumentation into a modal, a drawer, or something the user has to ask for.",
+      "Don't translate. The language mark names the answering voice; the product does not translate.",
+      "Don't take a system face for the display voice or the numerals. Both faces are self-hosted woff2 files, and the numerals must stay tabular in every readout."
+    ]
+  }
+}

@@ -128,7 +128,7 @@
   The exact same streamed request against the host LAN address succeeds, which isolates the fault to
   the `host-gateway` alias and not to the LLM or the container network:
   ```
-  $ docker exec open-voice-agent-1 node -e '<streamed fetch to 192.168.68.113>'
+  $ docker exec open-voice-agent-1 node -e '<streamed fetch to <host-lan-ip>>'
   HTTP 200 text/event-stream
   content_chunks=9 done_marker=true
   content="The container probe monitors the contents for safety."
@@ -281,7 +281,7 @@ LISTEN 0      4096       0.0.0.0:20128      0.0.0.0:*    users:(("omniroute (v16
 
 $ ip -brief addr
 docker0          DOWN       172.17.0.1/16
-wlp4s0           UP         192.168.68.113/24
+<wifi-iface>           UP         <host-lan-ip>/24
 
 $ ps -eo cmd | grep rootlesskit
 rootlesskit --state-dir=/run/user/1000/dockerd-rootless --net=slirp4netns ... --disable-host-loopback ...
@@ -316,7 +316,7 @@ The same daemon is reachable from the container through the host LAN address, so
 sound — only the alias is broken:
 
 ```
-$ docker exec open-voice-agent-1 node -e '...fetch("http://192.168.68.113:20128/v1/chat/completions",{stream})...'
+$ docker exec open-voice-agent-1 node -e '...fetch("http://<host-lan-ip>:20128/v1/chat/completions",{stream})...'
 HTTP 200 text/event-stream
 content_chunks=9 done_marker=true
 content="The container probe monitors the contents for safety."

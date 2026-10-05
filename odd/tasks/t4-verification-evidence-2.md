@@ -53,7 +53,7 @@ EXIT=0
 --- services ---
 agent: speaches: speaches-models: web:  (plus the default network and speaches-cache volume)
 --- resolved env (agent) ---
-LLM_BASE_URL: http://192.168.68.113:20128/v1
+LLM_BASE_URL: http://<host-lan-ip>:20128/v1
 LLM_MODEL: auto/best-chat
 STT_BASE_URL: http://speaches:8000/v1
 TTS_BASE_URL: http://speaches:8000/v1
@@ -69,9 +69,9 @@ address, so the template is self-consistent:
 
 ```
 $ ip route get 1.1.1.1
-1.1.1.1 via 192.168.68.1 dev wlp4s0 src 192.168.68.113 uid 1000
+1.1.1.1 via <host-lan-gw> dev <wifi-iface> src <host-lan-ip>
 $ ip -brief addr
-wlp4s0   UP   192.168.68.113/24
+<wifi-iface>   UP   <host-lan-ip>/24
 docker0  DOWN 172.17.0.1/16
 ```
 
@@ -204,7 +204,7 @@ length:
 
 ```
 $ docker compose --env-file env.example.template exec -T agent node -e '...'
-container LLM_BASE_URL=http://192.168.68.113:20128/v1 LLM_MODEL=auto/best-chat LLM_API_KEY_len=35
+container LLM_BASE_URL=http://<host-lan-ip>:20128/v1 LLM_MODEL=auto/best-chat LLM_API_KEY_len=<redacted>
 ```
 
 Streamed `POST {LLM_BASE_URL}/chat/completions`, `Authorization: Bearer` taken from the container's own
@@ -225,8 +225,8 @@ with the container's own credential. This is precisely what failed with `ECONNRE
 
 ```
 $ docker compose --env-file env.example.template logs agent
-agent-1  | {"timestamp":"2026-10-05T04:53:20.550Z","level":"info","event":"agent.started","host":"0.0.0.0","port":8787,"health":"http://0.0.0.0:8787/healthz","llmModel":"auto/best-chat","llmBaseUrl":"http://192.168.68.113:20128/v1","sttModel":"Systran/faster-whisper-small","realtimeStt":false,"tts":true}
-agent-1  | {"timestamp":"2026-10-05T04:53:20.741Z","level":"info","event":"agent.llm_reachable","url":"http://192.168.68.113:20128/v1/models"}
+agent-1  | {"timestamp":"2026-10-05T04:53:20.550Z","level":"info","event":"agent.started","host":"0.0.0.0","port":8787,"health":"http://0.0.0.0:8787/healthz","llmModel":"auto/best-chat","llmBaseUrl":"http://<host-lan-ip>:20128/v1","sttModel":"Systran/faster-whisper-small","realtimeStt":false,"tts":true}
+agent-1  | {"timestamp":"2026-10-05T04:53:20.741Z","level":"info","event":"agent.llm_reachable","url":"http://<host-lan-ip>:20128/v1/models"}
 ```
 
 Both required events, 191 ms apart. `llmBaseUrl` is the LAN address from the template, and the new
@@ -241,9 +241,9 @@ also shows what the warning looks like when something *does* answer.
 First attempt, using `-p 19279:8787` to move the published port off the running stack's 8787:
 
 ```
-$ docker compose --env-file env.example.template run --rm --no-deps -p 19279:8787 -e LLM_BASE_URL=http://192.168.68.113:19279/v1 agent
-{"timestamp":"2026-10-05T04:54:24.047Z","level":"info","event":"agent.started",...,"llmBaseUrl":"http://192.168.68.113:19279/v1",...}
-{"timestamp":"2026-10-05T04:54:24.163Z","level":"warn","event":"agent.llm_unreachable","url":"http://192.168.68.113:19279/v1/models","error":"HTTP 404"}
+$ docker compose --env-file env.example.template run --rm --no-deps -p 19279:8787 -e LLM_BASE_URL=http://<host-lan-ip>:19279/v1 agent
+{"timestamp":"2026-10-05T04:54:24.047Z","level":"info","event":"agent.started",...,"llmBaseUrl":"http://<host-lan-ip>:19279/v1",...}
+{"timestamp":"2026-10-05T04:54:24.163Z","level":"warn","event":"agent.llm_unreachable","url":"http://<host-lan-ip>:19279/v1/models","error":"HTTP 404"}
 ```
 
 `HTTP 404` is not a connection failure, so I checked what was listening. From the **host**, port 19279
@@ -257,9 +257,9 @@ $ ss -ltn | grep 19279
 Diagnosis, from inside a container:
 
 ```
-$ docker compose --env-file env.example.template exec -T agent node -e 'fetch("http://192.168.68.113:19279/v1/models")'
-THREW TypeError undefined fetch failed cause: ECONNREFUSED connect ECONNREFUSED 192.168.68.113:19279
-control 45111 THREW TypeError undefined fetch failed cause: ECONNREFUSED connect ECONNREFUSED 192.168.68.113:45111
+$ docker compose --env-file env.example.template exec -T agent node -e 'fetch("http://<host-lan-ip>:19279/v1/models")'
+THREW TypeError undefined fetch failed cause: ECONNREFUSED connect ECONNREFUSED <host-lan-ip>:19279
+control 45111 THREW TypeError undefined fetch failed cause: ECONNREFUSED connect ECONNREFUSED <host-lan-ip>:45111
 ```
 
 Port 19279 genuinely refuses connections. The `404` came from my own probe design: publishing
@@ -279,10 +279,10 @@ asked, so there is nothing to collide with the running stack's 8787 and no hairp
 ```
 $ ss -ltn | grep -c ':45111'
 0
-$ docker compose --env-file env.example.template run --rm --no-deps -e LLM_BASE_URL=http://192.168.68.113:45111/v1 agent
+$ docker compose --env-file env.example.template run --rm --no-deps -e LLM_BASE_URL=http://<host-lan-ip>:45111/v1 agent
 Container open-voice-agent-run-d0031ab31f70 Created
-{"timestamp":"2026-10-05T04:56:16.717Z","level":"info","event":"agent.started","host":"0.0.0.0","port":8787,"health":"http://0.0.0.0:8787/healthz","llmModel":"auto/best-chat","llmBaseUrl":"http://192.168.68.113:45111/v1","sttModel":"Systran/faster-whisper-small","realtimeStt":false,"tts":true}
-{"timestamp":"2026-10-05T04:56:16.786Z","level":"warn","event":"agent.llm_unreachable","url":"http://192.168.68.113:45111/v1/models","error":"fetch failed"}
+{"timestamp":"2026-10-05T04:56:16.717Z","level":"info","event":"agent.started","host":"0.0.0.0","port":8787,"health":"http://0.0.0.0:8787/healthz","llmModel":"auto/best-chat","llmBaseUrl":"http://<host-lan-ip>:45111/v1","sttModel":"Systran/faster-whisper-small","realtimeStt":false,"tts":true}
+{"timestamp":"2026-10-05T04:56:16.786Z","level":"warn","event":"agent.llm_unreachable","url":"http://<host-lan-ip>:45111/v1/models","error":"fetch failed"}
 ```
 
 Exactly one `agent.llm_unreachable` line (`grep -c` = 1), naming the probe URL, at `warn` level, 69 ms
@@ -424,7 +424,7 @@ brought all four services to their intended states with no manual intervention.
 
 **Defect 2 (agent could not reach the LLM) — CLOSED, observed.**
 From inside `open-voice-agent-1`, a streamed chat completion against the configured
-`http://192.168.68.113:20128/v1` returned HTTP 200 `text/event-stream` with 14 content chunks and
+`http://<host-lan-ip>:20128/v1` returned HTTP 200 `text/event-stream` with 14 content chunks and
 `[DONE]`. `agent.started` reports the LAN URL and `agent.llm_reachable` fires at startup.
 
 **No blocking defect found in this pass.** The two new findings are a stale documentation file and a

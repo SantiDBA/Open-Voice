@@ -36,7 +36,10 @@
 :root {
   /* Industrial color code - each with exactly one meaning */
   --color-idle: hsl(210, 10%, 40%);      /* steel grey - nothing is happening */
-  --color-transcribing: hsl(210, 80%, 50%); /* blue - microphone capturing */
+  /* blue - microphone capturing. 4.89:1 on this ground, which clears AA for
+     body text; measured against pure black it would read 4.37:1, so keep the
+     ground in mind before "simplifying" this value. */
+  --color-transcribing: hsl(210, 80%, 50%);
   --color-thinking: hsl(50, 80%, 50%);    /* yellow - model streaming, no audio yet */
   --color-speaking: hsl(40, 60%, 80%);    /* bone - synthesized audio playing */
   --color-cut: hsl(0, 80%, 50%);          /* red - interrupted or playback stopped (only for cut) */
@@ -223,15 +226,11 @@ caret {
   font-size: var(--size-label);
   font-weight: var(--weight-medium);
   border: 1px solid var(--color-border);
-  border-radius: 9999px; /* but we want no corner radius - wait, brief says no corner radius anywhere */
+  border-radius: 0;
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
 }
 
-/* Override to remove border radius */
-.status {
-  border-radius: 0;
-}
 
 /* Status colors */
 .status.connected {

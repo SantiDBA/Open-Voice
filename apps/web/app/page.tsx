@@ -222,6 +222,13 @@ export default function Home() {
   const blockedPlaybackRef = useRef<BlockedPlayback | null>(null);
   const playbackVadSuppressedUntilRef = useRef(0);
   const audioContextRef = useRef<AudioContext | null>(null);
+  /**
+   * Real microphone amplitude, tapped from the same context the VAD already
+   * runs on. The plot is driven by this reading and by nothing else, so the
+   * field never moves on a signal that does not exist.
+   */
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const micLevelBufRef = useRef<Float32Array | null>(null);
   const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const vadWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
   const vadScriptProcessorRef = useRef<ScriptProcessorNode | null>(null);
@@ -957,6 +964,12 @@ export default function Home() {
         .webkitAudioContext;
     const audioContext = new AudioContextConstructor();
     const source = audioContext.createMediaStreamSource(stream);
+    // Tap the live signal for the plot before the monitoring gain silences it.
+    const analyser = audioContext.createAnalyser();
+    analyser.fftSize = 1024;
+    source.connect(analyser);
+    micAnalyserRef.current = analyser;
+    micLevelBufRef.current = new Float32Array(analyser.fftSize);
     const muteGain = audioContext.createGain();
     muteGain.gain.value = 0;
 
@@ -1700,62 +1713,61 @@ export default function Home() {
     }
   }
 
-  // Update plot data based on audio state
+  // Drive the plot from real signal only.
+  //
+  // While the microphone is live the trace follows the actual amplitude tapped
+  // from the capture context. Every other phase has no audio signal to read:
+  // playback runs through an HTMLAudioElement rather than the Web Audio graph,
+  // so there is no playback amplitude to sample without re-architecting the
+  // audio path, which is out of scope here. Those phases rest at the baseline
+  // and let the color strip carry the state. Nothing here is simulated.
   useEffect(() => {
-    // Generate sample data for demonstration
-    // In real implementation, this would come from audio amplitude
     const updatePlotData = () => {
       if (prefersReducedMotion) return;
 
       const canvas = plotCanvasRef.current;
       if (!canvas) return;
-
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // Simple simulation based on state
-      let radius = 0;
-      let angle = 0;
-
-      // Determine radius based on state
-      if (liveModeRef.current && liveListeningRef.current) {
-        // Listening state - use microphone amplitude
-        // For now, use vadSnapshot RMS if available, otherwise pulse
-        const rms = vadSnapshot?.rms ?? 0;
-        radius = Math.min(0.8, 0.2 + rms * 3); // Scale RMS to reasonable radius
-      } else if (recording && !liveMode) {
-        // Push-to-talk recording
-        radius = 0.6; // Fixed medium radius
-      } else if (activeRequestId) {
-        // Processing or playing state
-        const isPlaying = isPlaybackActive();
-        if (isPlaying) {
-          // Speaking state - use playback signal if available, otherwise pulse
-          radius = 0.7; // Fixed for now - would use playback amplitude in real impl
-        } else {
-          // Thinking state
-          radius = 0.5; // Medium-low radius
-        }
-      } else {
-        // Idle state
-        radius = 0.2; // Small radius
-      }
-
-      // Convert polar to Cartesian coordinates
       const width = canvas.width;
       const height = canvas.height;
       const centerX = width / 2;
       const centerY = height / 2;
       const maxRadius = Math.min(centerX, centerY) * 0.8;
 
-      angle += 0.05; // Slow rotation for visualization
-      const x = centerX + Math.cos(angle) * radius * maxRadius;
-      const y = centerY + Math.sin(angle) * radius * maxRadius;
+      const micLive =
+        (liveModeRef.current && liveListeningRef.current) ||
+        (recording && !liveMode);
 
-      // Add point to plot data
-      plotDataRef.current.push({ x, y });
+      let level = 0;
+      if (micLive) {
+        const analyser = micAnalyserRef.current;
+        const buffer = micLevelBufRef.current;
+        if (analyser && buffer) {
+          analyser.getFloatTimeDomainData(buffer);
+          let sum = 0;
+          for (let i = 0; i < buffer.length; i += 1) {
+            sum += buffer[i] * buffer[i];
+          }
+          const rms = Math.sqrt(sum / buffer.length);
+          // Square-root keeps quiet speech visible without letting peaks clip.
+          level = Math.min(0.92, Math.sqrt(rms) * 1.15);
+        }
+      }
 
-      // Keep only recent points
+      if (level <= 0.004) {
+        // No signal: let the trace decay toward the baseline instead of
+        // drawing a shape that pretends something is happening.
+        plotDataRef.current.length = 0;
+        return;
+      }
+
+      const angle = Date.now() / 1000;
+      plotDataRef.current.push({
+        x: centerX + Math.cos(angle) * level * maxRadius,
+        y: centerY + Math.sin(angle) * level * maxRadius
+      });
       if (plotDataRef.current.length > plotMaxPointsRef.current) {
         plotDataRef.current.shift();
       }

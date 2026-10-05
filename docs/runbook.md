@@ -25,6 +25,19 @@ Ports **8787** (agent) and **3000** (web) must be free on the host.
 cp env.example.template .env
 ```
 
+If your tooling refuses to create a `.env` file — some editor and agent tooling classifies the `.env*`
+path pattern as sensitive — pass the tracked template directly instead. The agent service takes its
+configuration through Compose interpolation, which reads the project `.env` automatically but accepts
+an explicit file too:
+
+```bash
+export LLM_API_KEY="$OMNIROUTE_API_KEY"
+docker compose --env-file env.example.template up -d
+```
+
+Both paths produce the same container environment. The second keeps the token in the shell instead of
+in a file.
+
 Then put your real token in it. Do not put it anywhere else — `.env` is git-ignored and this repository never
 stores a credential:
 
@@ -244,7 +257,7 @@ Two other ways to point the process at a different `.env`: `OPEN_GPT_LIVE_ENV_FI
 
 | Symptom | Actual cause | Fix |
 | --- | --- | --- |
-| `docker compose config` fails with `env file /.../.env not found` | `agent` declares `env_file: .env` and Compose parses it at config time | `cp env.example.template .env` and fill it in |
+| `LLM_API_KEY is required for api.openai.com` on a private-provider stack | `LLM_BASE_URL` resolved empty, so the agent fell back to the `https://api.openai.com/v1` default | Pass `LLM_BASE_URL` explicitly, or use `--env-file env.example.template` |
 | Agent container exits immediately, no logs, `agent.start_failed` | A configuration error at startup: bad `GATEWAY_PORT`, malformed entry in `ALLOWED_ORIGINS`, unknown `LOG_LEVEL`, hosted `api.openai.com` URL without a key | Read the JSON error line; it names the variable. Fix it in `.env` |
 | `LLM_API_KEY is required for api.openai.com` | `LLM_BASE_URL` is unset, empty, or a typo that left the `https://api.openai.com/v1` default in place | Set it explicitly to the container-side URL |
 | `STT_API_KEY is required for api.openai.com, or point STT_BASE_URL at a self-hosted provider` | `STT_BASE_URL` unset, so it inherited the LLM base URL and failed the hosted-URL check | Set `STT_BASE_URL=http://speaches:8000/v1` explicitly |

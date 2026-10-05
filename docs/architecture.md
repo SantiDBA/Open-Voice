@@ -14,7 +14,7 @@ Three layers. Each one is replaceable on its own as long as it keeps the protoco
 | --- | --- | --- | --- | --- |
 | Browser | `web` | `@open-gpt-live/web` (`apps/web`) | 3000 | Microphone capture, adaptive RMS VAD, PCM pre-roll, transcript display, ordered playback, reconnect, latency diagnostics |
 | Session | `agent` | `@open-voice/agent` (`packages/agent`) | 8787 | Turn orchestration, STT/LLM/TTS calls, sentence segmentation, abort and interrupt, persona |
-| Providers | `speaches` + the host's OmniRoute daemon | `@open-gpt-live/adapters` | `speaches:8000`, `host.docker.internal:20128` | Speech-to-text, chat completions, text-to-speech |
+| Providers | `speaches` + the host's OmniRoute daemon | `@open-gpt-live/adapters` | `speaches:8000`, a routable host address on port 20128 | Speech-to-text, chat completions, text-to-speech |
 
 The two vendored libraries that both the browser and the agent depend on:
 
@@ -103,7 +103,7 @@ Live mode, microphone to audio out:
                  (PCM16 is wrapped in a WAV header first, model Systran/faster-whisper-small)
               <- transcript.partial if realtime STT is on (it is off here), transcript.final
 
- 3. Agent     LLM: POST http://host.docker.internal:20128/v1/chat/completions
+ 3. Agent     LLM: POST $LLM_BASE_URL/chat/completions   (host address, see below)
                  stream: true, model auto/best-chat, messages = [systemPrompt, ...history, user text]
               <- llm.delta for every token, then llm.done
 
@@ -135,7 +135,7 @@ The hybrid decision is that the LLM is not ours and the speech models are.
 | --- | --- | --- |
 | Browser to agent | `ws://localhost:8787`, host loopback | Audio frames, transcripts, replies |
 | Agent to Speaches | `speaches:8000`, Docker network only | Transcripts in, audio out |
-| **Agent to OmniRoute** | **`host.docker.internal:20128`, host loopback** | **Your conversation text, and whatever OmniRoute forwards upstream** |
+| **Agent to OmniRoute** | **a routable host address on port 20128** | **Your conversation text, and whatever OmniRoute forwards upstream** |
 | Speaches model download | `ghcr.io` and the Hugging Face CDN | Model weights only, once |
 | Container images | `docker.io`, `ghcr.io` | Image layers only |
 
@@ -145,11 +145,15 @@ OmniRoute is a router: it forwards each request to whichever upstream provider i
 `auto/best-chat`, and that provider is somewhere else. Treat every turn as leaving the machine, and treat the
 Hugging Face CDN as an external dependency on first start.
 
-The container-side URL is `http://host.docker.internal:20128/v1` while the host-side URL is
-`http://127.0.0.1:20128/v1`. They differ because OmniRoute binds the loopback interface only: a container
-cannot reach the host's `127.0.0.1`, so compose maps `host.docker.internal` to the host gateway
-(`extra_hosts: host.docker.internal:host-gateway`). If you run the agent on the host with `pnpm dev` instead,
-use the loopback URL.
+Inside the container the LLM is reached by a **routable host address**, and that address is configuration,
+not a constant. OmniRoute listens on `0.0.0.0:20128`, so a container could in principle reach it on the
+host's LAN address — and must, on this machine. Docker here is **rootless**
+(`rootlesskit --net=slirp4netns --disable-host-loopback`), where the usual `host.docker.internal` alias
+resolves to `172.17.0.1` and host-bound services refuse connections there with `ECONNREFUSED`. The
+container therefore has no alias to fall back on: `LLM_BASE_URL` has no default and compose refuses to
+start without it, because a wrong address otherwise yields a healthy agent with no LLM at all.
+
+From the host, with `pnpm dev` instead of compose, use the loopback URL `http://127.0.0.1:20128/v1`.
 
 ## Known limitations that affect operation
 

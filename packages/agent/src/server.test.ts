@@ -1,8 +1,15 @@
 import assert from "node:assert/strict";
+import { setTimeout as delay } from "node:timers/promises";
 import { test } from "vitest";
 
 import { DEFAULT_SYSTEM_PROMPT } from "./prompt.js";
-import { AGENT_VERSION, startAgent } from "./server.js";
+import {
+  AGENT_VERSION,
+  LLM_PROBE_TIMEOUT_MS,
+  startAgent,
+  type LlmProbeRequest,
+  type LlmProbeResult
+} from "./server.js";
 import type { GatewayServerOptions } from "./gateway-internals.js";
 
 const selfHostedEnv = {
@@ -22,15 +29,55 @@ interface Harness {
   options: GatewayServerOptions[];
   closed: number;
   loadEnvironmentCalls: number;
+  probes: LlmProbeRequest[];
 }
 
 function createHarness(): Harness {
-  return { options: [], closed: 0, loadEnvironmentCalls: 0 };
+  return { options: [], closed: 0, loadEnvironmentCalls: 0, probes: [] };
+}
+
+/** Lets the deliberately unawaited startup probe settle before assertions run. */
+async function settleProbe(): Promise<void> {
+  await delay(10);
+}
+
+/** Collects the JSON logger's stdout and stderr writes into a captured list. */
+function captureLogs(captured: Array<Record<string, unknown>>): () => void {
+  const originalLog = console.log;
+  const originalWarn = console.warn;
+  const capture = (line: string): void => {
+    captured.push(JSON.parse(line) as Record<string, unknown>);
+  };
+  console.log = capture;
+  console.warn = capture;
+  return () => {
+    console.log = originalLog;
+    console.warn = originalWarn;
+  };
+}
+
+/** Runs `body` with the agent's structured logs captured, then restores the console. */
+async function captureAgentLogs(
+  body: () => Promise<void> | void
+): Promise<Array<Record<string, unknown>>> {
+  const captured: Array<Record<string, unknown>> = [];
+  const restoreLogs = captureLogs(captured);
+  try {
+    await body();
+    await settleProbe();
+  } finally {
+    restoreLogs();
+  }
+  return captured;
 }
 
 async function startWithHarness(
   harness: Harness,
-  env: NodeJS.ProcessEnv = selfHostedEnv
+  env: NodeJS.ProcessEnv = selfHostedEnv,
+  probeLlm: (request: LlmProbeRequest) => Promise<LlmProbeResult> = async () => ({
+    ok: true,
+    status: 200
+  })
 ) {
   const agent = await startAgent({
     env,
@@ -48,6 +95,10 @@ async function startWithHarness(
           harness.closed += 1;
         }
       };
+    },
+    probeLlm: async (request) => {
+      harness.probes.push(request);
+      return probeLlm(request);
     },
     registerSignalHandlers: false
   });
@@ -190,16 +241,21 @@ test("stopping the agent closes the gateway once and is idempotent", async () =>
 
 test("stopping the agent logs the stopping and stopped events", async () => {
   const harness = createHarness();
-  const agent = await startWithHarness(harness);
+  // The startup probe stays pending here so this assertion stays scoped to the
+  // two shutdown events.
+  const agent = await startWithHarness(harness, selfHostedEnv, (request) =>
+    new Promise<LlmProbeResult>((_resolve, reject) => {
+      request.signal.addEventListener("abort", () =>
+        reject(new Error("LLM probe timed out"))
+      );
+    })
+  );
   const captured: Array<Record<string, unknown>> = [];
-  const originalLog = console.log;
-  console.log = (line: string): void => {
-    captured.push(JSON.parse(line) as Record<string, unknown>);
-  };
+  const restoreLogs = captureLogs(captured);
   try {
     await agent.stop("SIGTERM");
   } finally {
-    console.log = originalLog;
+    restoreLogs();
   }
 
   assert.deepEqual(
@@ -207,6 +263,161 @@ test("stopping the agent logs the stopping and stopped events", async () => {
     ["agent.stopping", "agent.stopped"]
   );
   assert.equal(captured[0].signal, "SIGTERM");
+});
+
+test("the startup probe runs once, after the gateway listens, against the LLM models endpoint", async () => {
+  const harness = createHarness();
+  const captured: Array<Record<string, unknown>> = [];
+  const restoreLogs = captureLogs(captured);
+  try {
+    await startWithHarness(harness, {
+      ...selfHostedEnv,
+      LLM_BASE_URL: "http://127.0.0.1:20128/v1/",
+      LLM_API_KEY: "llm-secret"
+    });
+    await settleProbe();
+  } finally {
+    restoreLogs();
+  }
+
+  assert.equal(harness.probes.length, 1);
+  assert.equal(harness.probes[0].url, "http://127.0.0.1:20128/v1/models");
+  assert.equal(harness.probes[0].headers.Authorization, "Bearer llm-secret");
+  const startedAt = captured.findIndex((entry) => entry.event === "agent.started");
+  const reachableAt = captured.findIndex(
+    (entry) => entry.event === "agent.llm_reachable"
+  );
+  assert.equal(reachableAt, startedAt + 1);
+});
+
+test("the startup probe sends no authorization header when no LLM API key is configured", async () => {
+  const harness = createHarness();
+  await captureAgentLogs(async () => {
+    await startWithHarness(harness, {
+      LLM_BASE_URL: "http://127.0.0.1:20128/v1",
+      STT_BASE_URL: "http://speaches:8000/v1",
+      TTS_ENABLED: "false"
+    });
+  });
+
+  assert.deepEqual(harness.probes[0].headers, {});
+});
+
+test("a reachable LLM logs agent.llm_reachable and never warns", async () => {
+  const harness = createHarness();
+  const captured = await captureAgentLogs(async () => {
+    await startWithHarness(harness);
+  });
+
+  assert.equal(
+    captured.filter((entry) => entry.event === "agent.llm_unreachable").length,
+    0
+  );
+  assert.equal(
+    captured.filter((entry) => entry.event === "agent.llm_reachable").length,
+    1
+  );
+});
+
+test("an unreachable LLM warns once with the configured URL and keeps the agent running", async () => {
+  const harness = createHarness();
+  const captured: Array<Record<string, unknown>> = [];
+  const restoreLogs = captureLogs(captured);
+  let agent;
+  try {
+    agent = await startWithHarness(harness, selfHostedEnv, async () => ({
+      ok: false,
+      status: 401
+    }));
+    await settleProbe();
+    await agent.stop("SIGTERM");
+  } finally {
+    restoreLogs();
+  }
+
+  const warnings = captured.filter(
+    (entry) => entry.event === "agent.llm_unreachable"
+  );
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].level, "warn");
+  assert.equal(warnings[0].url, "http://127.0.0.1:20128/v1/models");
+  assert.equal(warnings[0].error, "HTTP 401");
+  assert.equal(harness.closed, 1);
+});
+
+test("a network failure while probing the LLM warns once with the error description", async () => {
+  const harness = createHarness();
+  const captured = await captureAgentLogs(async () => {
+    await startWithHarness(harness, selfHostedEnv, async () => {
+      throw new Error("connect ECONNREFUSED 172.17.0.1:20128");
+    });
+  });
+
+  const warnings = captured.filter(
+    (entry) => entry.event === "agent.llm_unreachable"
+  );
+  assert.equal(warnings.length, 1);
+  assert.equal(warnings[0].url, "http://127.0.0.1:20128/v1/models");
+  assert.equal(warnings[0].error, "connect ECONNREFUSED 172.17.0.1:20128");
+});
+
+test("an asynchronous probe failure neither escapes as an unhandled rejection nor fails startup", async () => {
+  const harness = createHarness();
+  const unhandled: Array<unknown> = [];
+  const onUnhandled = (error: unknown): void => {
+    unhandled.push(error);
+  };
+  process.on("unhandledRejection", onUnhandled);
+
+  const captured: Array<Record<string, unknown>> = [];
+  const restoreLogs = captureLogs(captured);
+  let agent;
+  try {
+    agent = await startWithHarness(harness, selfHostedEnv, () => {
+      throw new Error("probe exploded after the response settled");
+    });
+    await settleProbe();
+    await delay(20);
+  } finally {
+    restoreLogs();
+    process.off("unhandledRejection", onUnhandled);
+  }
+
+  assert.deepEqual(unhandled, []);
+  assert.equal(
+    captured.filter((entry) => entry.event === "agent.llm_unreachable").length,
+    1
+  );
+  assert.equal(harness.options.length, 1);
+  await agent!.stop("SIGTERM");
+  assert.equal(harness.closed, 1);
+});
+
+test("a probe that never settles is abandoned after the probe timeout without blocking startup", async () => {
+  const harness = createHarness();
+  const captured: Array<Record<string, unknown>> = [];
+  const restoreLogs = captureLogs(captured);
+  let agent;
+  try {
+    agent = await startWithHarness(harness, selfHostedEnv, (request) =>
+      new Promise<LlmProbeResult>((_resolve, reject) => {
+        request.signal.addEventListener("abort", () =>
+          reject(new Error("LLM probe timed out"))
+        );
+      })
+    );
+    await settleProbe();
+  } finally {
+    restoreLogs();
+  }
+
+  assert.equal(agent!.gateway.port, 8787);
+  assert.equal(
+    captured.filter((entry) => entry.event === "agent.llm_unreachable").length,
+    0
+  );
+  await agent!.stop("SIGTERM");
+  assert.ok(LLM_PROBE_TIMEOUT_MS >= 3_000 && LLM_PROBE_TIMEOUT_MS <= 5_000);
 });
 
 test("startAgent fails fast on an invalid agent configuration", async () => {

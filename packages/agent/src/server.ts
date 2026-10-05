@@ -5,7 +5,11 @@ import type {
 } from "@open-gpt-live/adapters";
 import { WebSocket } from "ws";
 
-import { loadAgentConfig, type AgentConfig } from "./config.js";
+import {
+  loadAgentConfig,
+  type AgentConfig,
+  type LlmConfig
+} from "./config.js";
 import {
   createGatewayServer,
   createJsonLogger,
@@ -18,12 +22,32 @@ import { createAgentProviders } from "./providers.js";
 
 export const AGENT_VERSION = "0.1.0";
 
+/** How long the startup reachability probe may take before it is abandoned. */
+export const LLM_PROBE_TIMEOUT_MS = 3_000;
+
+/** Single request against the OpenAI-compatible model list of the LLM base URL. */
+export interface LlmProbeRequest {
+  url: string;
+  headers: Record<string, string>;
+  signal: AbortSignal;
+}
+
+/** Outcome of the startup reachability probe, mirroring a `/models` response. */
+export interface LlmProbeResult {
+  ok: boolean;
+  status?: number;
+  error?: string;
+}
+
+export type LlmProbe = (request: LlmProbeRequest) => Promise<LlmProbeResult>;
+
 export interface AgentRuntimeDependencies {
   env?: NodeJS.ProcessEnv;
   loadEnvironment?: () => void;
   createServer?: typeof createGatewayServer;
   createProviders?: typeof createAgentProviders;
   webSocketFactory?: StreamingSTTWebSocketFactory;
+  probeLlm?: LlmProbe;
   registerSignalHandlers?: boolean;
 }
 
@@ -79,6 +103,12 @@ export async function startAgent(
     tts: config.tts.enabled
   });
 
+  announceLlmReachability(
+    config.llm,
+    logger,
+    dependencies.probeLlm ?? fetchLlmProbe
+  );
+
   let shuttingDown = false;
   const stop = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
@@ -94,6 +124,63 @@ export async function startAgent(
   }
 
   return { gateway, logger, config, systemPrompt, stop };
+}
+
+/**
+ * Probes the LLM once after the gateway listens so an unreachable provider is
+ * announced at startup instead of surfacing on a user's first turn.
+ *
+ * The probe is fire-and-forget: an unreachable LLM is a warning, never a fatal
+ * configuration error, so startup, `/healthz` and WebSocket sessions all
+ * continue and the agent recovers once the provider answers again. The catch is
+ * attached to the launched promise so nothing escapes as an unhandled rejection.
+ */
+function announceLlmReachability(
+  llm: LlmConfig,
+  logger: GatewayLogger,
+  probe: LlmProbe
+): void {
+  void (async () => {
+    const url = llmProbeUrl(llm.baseUrl);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LLM_PROBE_TIMEOUT_MS);
+    try {
+      const result = await probe({
+        url,
+        headers: llm.apiKey ? { Authorization: `Bearer ${llm.apiKey}` } : {},
+        signal: controller.signal
+      });
+      if (result.ok) {
+        logger.info("agent.llm_reachable", { url });
+        return;
+      }
+      logger.warn("agent.llm_unreachable", {
+        url,
+        error: result.error ?? `HTTP ${result.status ?? "unknown"}`
+      });
+    } catch (error) {
+      logger.warn("agent.llm_unreachable", {
+        url,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  })().catch(() => undefined);
+}
+
+/** Matches the adapters: the provider URL is stripped of trailing slashes. */
+function llmProbeUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, "")}/models`;
+}
+
+async function fetchLlmProbe({
+  url,
+  headers,
+  signal
+}: LlmProbeRequest): Promise<LlmProbeResult> {
+  const response = await fetch(url, { method: "GET", headers, signal });
+  return { ok: response.ok, status: response.status };
 }
 
 function nodeWebSocketFactory(

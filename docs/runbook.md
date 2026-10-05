@@ -297,7 +297,7 @@ token, TTS first sentence, playback.
 | VAD hangover before a turn closes | 750 ms | 750 ms | **deliberately not lowered, see below** |
 | Batch STT, 2.4 s of real speech | 9.4 s | **2.9 s** | `STT_MODEL` moved from `faster-whisper-small` to `faster-whisper-base` |
 | LLM first token, typical | 1.3 s | **0.6 – 0.9 s** | `LLM_MODEL` moved from `auto/best-chat` to `auto/chat` |
-| TTS first chunk after first token | 4.2 s to first sound | **3.1 s** | `TTS_SEGMENT_MIN_LENGTH` lowered from 24 to 10 |
+| TTS first sound after the first token | ~3.5 s | ~3.5 s | left at the gateway default of 24 |
 
 Roughly 12–14 s per turn became roughly 5 s, measured through the agent's own WebSocket.
 
@@ -325,8 +325,21 @@ Trading further:
 - A noisy room costs more accuracy than a small model does. The measured idle noise floor in this
   room sits above the speech threshold at times, which is what made the VAD misfire in the first
   place. Headphones and speaking closer to the mic beat any model swap.
-- `TTS_SEGMENT_MIN_LENGTH` and `LIVE_PARTIAL_INITIAL_INTERVAL_MS` are agent variables. Lowering the
-  first makes the agent start speaking on a short fragment instead of a whole clause.
+- `TTS_SEGMENT_MIN_LENGTH`, `TTS_SEGMENT_MAX_LENGTH`, `LIVE_PARTIAL_INITIAL_INTERVAL_MS`,
+  `LIVE_PARTIAL_LONG_TURN_INTERVAL_MS` and `LIVE_PARTIAL_LONG_TURN_AFTER_MS` are agent variables and
+  all default to the gateway's own values. Lowering the segment minimum was tried and did nothing
+  measurable: three runs each gave first sound at 3.3 / 5.5 / 3.6 s with 24 and 4.0 / 3.9 / 2.9 s with
+  10. Do not tune it on the strength of one run.
+
+### A trap worth knowing about
+
+Compose only passes a variable into a container if the service block names it. Two variables were once
+added to the template and to the agent's parser but never named in the `agent` service, so they
+silently never reached the process and both fell back to defaults: English kept using the Spanish
+voice, and a latency improvement was "measured" that was really just noise. An absent variable is
+invisible by nature. `packages/agent/src/compose-wiring.test.ts` now fails the build if the agent
+parses a variable compose does not pass, if compose passes one the template never documents, or if
+the two drift apart on a default. When you add a variable, that test is what tells you it works.
 
 What no configuration can fix: **STT still waits for you to stop talking.** Speaches does not
 implement the OpenAI Realtime WebSocket protocol, so there is no token-by-token transcription and the

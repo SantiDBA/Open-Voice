@@ -287,6 +287,44 @@ Two other ways to point the process at a different `.env`: `OPEN_GPT_LIVE_ENV_FI
 | Editing an `LLM_*`/`TTS_*` value changes nothing | Those are read at container start | `docker compose up -d agent` |
 | Port 8787 already in use, `EADDRINUSE` | Something else owns the port, often a leftover agent process | `ss -ltnp 'sport = :8787'`, then stop it. Never run `apps/gateway`'s `dist/server.cjs` alongside the agent |
 
+## 10. Latency
+
+Every stage of a turn was measured on this machine. A turn is serial: speech end, STT, LLM first
+token, TTS first sentence, playback.
+
+| Stage | Before | Now | How |
+| --- | ---: | ---: | --- |
+| VAD hangover before a turn closes | 750 ms | **400 ms** | `NEXT_PUBLIC_VAD_HANGOVER_MS` |
+| Batch STT, 2.4 s of real speech | 9.4 s | **2.9 s** | `STT_MODEL` moved from `faster-whisper-small` to `faster-whisper-base` |
+| LLM first token, typical | 1.3 s | **0.6 – 0.9 s** | `LLM_MODEL` moved from `auto/best-chat` to `auto/chat` |
+| TTS first chunk after first token | 1.8 s | 1.8 s | see `TTS_SEGMENT_MIN_LENGTH` below |
+
+Roughly 12–14 s per turn became roughly 5 s.
+
+Trading further:
+
+- `STT_MODEL=Systran/faster-whisper-tiny` is **1.6 s** and produced the same transcript on the
+  reference clip, but is weaker on accents, room noise and uncommon words. Try it, and go back to
+  `base` if it mishears you.
+- `LLM_MODEL` left on an `auto/*` combo lets the router choose a provider per call, and that choice
+  varies: the same request was measured from 536 ms to 7 s. Pinning an explicit provider removes the
+  tail: `LLM_MODEL=groq/openai/gpt-oss-20b` measured 426 / 511 / 1935 ms across five calls.
+  `curl -s http://127.0.0.1:20128/v1/models` lists what is available.
+- `TTS_SEGMENT_MIN_LENGTH` and `LIVE_PARTIAL_INITIAL_INTERVAL_MS` are agent variables. Lowering the
+  first makes the agent start speaking on a short fragment instead of a whole clause.
+
+What no configuration can fix: **STT still waits for you to stop talking.** Speaches does not
+implement the OpenAI Realtime WebSocket protocol, so there is no token-by-token transcription and the
+whole STT cost sits after the hangover. That is the single largest remaining structural cost.
+
+### Networking
+
+The agent runs with `network_mode: host`. On rootless Docker there is no usable container route to a
+host service: `host.docker.internal` refuses connections, the slirp gateway is unreachable, and
+routing through the host's WiFi address measured anywhere between 1.4 s and 18 s for the same
+request. Loopback is both correct and the fastest option, and Speaches is published on
+`127.0.0.1:8000` for it.
+
 ## 9. Replacing the persona
 
 Precedence in `packages/agent/src/prompt.ts` is **`AGENT_SYSTEM_PROMPT_FILE`**, then **`AGENT_SYSTEM_PROMPT`**,

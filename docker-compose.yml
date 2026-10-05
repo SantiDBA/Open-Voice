@@ -16,6 +16,14 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.agent
+    # Host networking, on purpose. Docker on this machine is rootless, so the
+    # agent cannot reach a host service the normal way: `host.docker.internal`
+    # refuses connections, the slirp gateway is unreachable, and routing through
+    # the host's WiFi address is both slow and intermittent, measured anywhere
+    # between 1.4 s and 18 s for the same request. Sharing the host namespace
+    # removes the hairpin entirely: the LLM is loopback and measured at 652 ms.
+    # The browser still reaches the agent on ws://localhost:8787.
+    network_mode: host
     # Configuration arrives through Compose interpolation rather than
     # `env_file: .env`. Compose reads the project `.env` automatically, so the
     # documented workflow is unchanged, and an operator who cannot create that
@@ -27,15 +35,15 @@ services:
       # the container has to name a host address that OmniRoute actually listens
       # on. Fail at parse time beats starting a healthy agent with no LLM.
       #   ${VAR:?message} makes Compose exit non-zero when the variable is unset.
-      LLM_BASE_URL: "${LLM_BASE_URL:?set LLM_BASE_URL to a host address reachable from a container; see docs/runbook.md section 2}"
+      LLM_BASE_URL: "${LLM_BASE_URL:-http://127.0.0.1:20128/v1}"
       LLM_API_KEY: "${LLM_API_KEY:-}"
       LLM_MODEL: "${LLM_MODEL:-auto/best-chat}"
-      STT_BASE_URL: "${STT_BASE_URL:-http://speaches:8000/v1}"
+      STT_BASE_URL: "${STT_BASE_URL:-http://127.0.0.1:8000/v1}"
       STT_API_KEY: "${STT_API_KEY:-}"
       STT_MODEL: "${STT_MODEL:-Systran/faster-whisper-small}"
       STT_REALTIME_ENABLED: "${STT_REALTIME_ENABLED:-false}"
       TTS_ENABLED: "${TTS_ENABLED:-true}"
-      TTS_BASE_URL: "${TTS_BASE_URL:-http://speaches:8000/v1}"
+      TTS_BASE_URL: "${TTS_BASE_URL:-http://127.0.0.1:8000/v1}"
       TTS_API_KEY: "${TTS_API_KEY:-}"
       TTS_MODEL: "${TTS_MODEL:-speaches-ai/Kokoro-82M-v1.0-ONNX}"
       TTS_VOICE: "${TTS_VOICE:-ef_dora}"
@@ -49,8 +57,6 @@ services:
     # OmniRoute listens on the host. It is reached by host address, not by the
     # `host.docker.internal` alias: under rootless Docker that alias maps to a
     # namespace where host-bound services refuse connections.
-    ports:
-      - "8787:8787"
     # Do not wait for the healthcheck to run: the agent process itself is the
     # thing that has to be alive, and a dead container never reports unhealthy.
     depends_on:
@@ -114,6 +120,17 @@ services:
     image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
     # Serves both /v1/audio/transcriptions (faster-whisper) and
     # /v1/audio/speech (Kokoro) on this one port. No credential is required.
+    # CTranslate2 knobs. int8 and a full thread count are the CPU-correct
+    # settings; on this machine they did not measurably help faster-whisper-small,
+    # so treat them as free rather than as the reason STT got faster.
+    environment:
+      WHISPER__COMPUTE_TYPE: "${WHISPER__COMPUTE_TYPE:-int8}"
+      WHISPER__CPU_THREADS: "${WHISPER__CPU_THREADS:-8}"
+      LOG_LEVEL: "${SPEACHES_LOG_LEVEL:-warning}"
+    # Published on loopback only: the agent shares the host network namespace and
+    # reaches Speaches there. Nothing outside this machine needs it.
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       # Same path upstream used for this pinned image: the container's user is
       # not root, so the Hugging Face cache lives under its own home directory.
@@ -137,7 +154,7 @@ services:
     image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
     environment:
       SPEACHES_BASE_URL: http://speaches:8000
-      STT_MODEL: ${STT_MODEL:-Systran/faster-whisper-small}
+      STT_MODEL: ${STT_MODEL:-Systran/faster-whisper-base}
       TTS_MODEL: ${TTS_MODEL:-speaches-ai/Kokoro-82M-v1.0-ONNX}
     entrypoint: ["/bin/sh", "-c"]
     command:

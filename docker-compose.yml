@@ -1,0 +1,122 @@
+name: open-voice
+
+# Open Voice — hybrid runtime.
+#
+#   agent            @open-voice/agent, the composition root that replaces the
+#                    upstream gateway process. Listens on 8787.
+#   web              the vendored Next.js browser app on 3000.
+#   speaches         faster-whisper STT + Kokoro TTS, one port for both.
+#   speaches-models  one-shot pre-download of both speech models, then exits.
+#
+# There is no LLM service here: the LLM is the OmniRoute daemon already running
+# on the host, which the agent reaches through `host.docker.internal`.
+
+services:
+  agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    # Read from the untracked `.env` in the project directory. Compose reports a
+    # missing file at parse time, which is deliberate: the agent cannot run
+    # without these values.
+    env_file:
+      - .env
+    # OmniRoute binds 127.0.0.1 on the host only, so the container reaches it
+    # through the host-gateway alias instead of the loopback address.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "8787:8787"
+    # Do not wait for the healthcheck to run: the agent process itself is the
+    # thing that has to be alive, and a dead container never reports unhealthy.
+    depends_on:
+      speaches-models:
+        condition: service_completed_successfully
+    healthcheck:
+      # The agent image is bundle-only: no curl, no wget, no shell. Node is the
+      # only guaranteed tool, so the probe uses the built-in fetch.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/healthz').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      # NEXT_PUBLIC_* values are inlined into the bundle at build time, not read
+      # at runtime. Each arg falls back to the default declared in Dockerfile.web
+      # when the variable is unset in `.env`.
+      args:
+        NEXT_PUBLIC_GATEWAY_WS_URL: "${NEXT_PUBLIC_GATEWAY_WS_URL:-ws://localhost:8787}"
+        NEXT_PUBLIC_VAD_ADAPTIVE_ENABLED: "${NEXT_PUBLIC_VAD_ADAPTIVE_ENABLED:-true}"
+        NEXT_PUBLIC_VAD_CALIBRATION_MS: "${NEXT_PUBLIC_VAD_CALIBRATION_MS:-1000}"
+        NEXT_PUBLIC_VAD_NOISE_FLOOR_SMOOTHING: "${NEXT_PUBLIC_VAD_NOISE_FLOOR_SMOOTHING:-0.08}"
+        NEXT_PUBLIC_VAD_SPEECH_NOISE_MULTIPLIER: "${NEXT_PUBLIC_VAD_SPEECH_NOISE_MULTIPLIER:-3}"
+        NEXT_PUBLIC_VAD_SILENCE_NOISE_MULTIPLIER: "${NEXT_PUBLIC_VAD_SILENCE_NOISE_MULTIPLIER:-1.8}"
+        NEXT_PUBLIC_VAD_DYNAMIC_SPEECH_MIN: "${NEXT_PUBLIC_VAD_DYNAMIC_SPEECH_MIN:-0.012}"
+        NEXT_PUBLIC_VAD_DYNAMIC_SPEECH_MAX: "${NEXT_PUBLIC_VAD_DYNAMIC_SPEECH_MAX:-0.12}"
+        NEXT_PUBLIC_VAD_DYNAMIC_SILENCE_MIN: "${NEXT_PUBLIC_VAD_DYNAMIC_SILENCE_MIN:-0.006}"
+        NEXT_PUBLIC_VAD_DYNAMIC_SILENCE_MAX: "${NEXT_PUBLIC_VAD_DYNAMIC_SILENCE_MAX:-0.08}"
+        NEXT_PUBLIC_VAD_SPEECH_THRESHOLD: "${NEXT_PUBLIC_VAD_SPEECH_THRESHOLD:-0.02}"
+        NEXT_PUBLIC_VAD_SILENCE_THRESHOLD: "${NEXT_PUBLIC_VAD_SILENCE_THRESHOLD:-0.012}"
+        NEXT_PUBLIC_VAD_START_DEBOUNCE_MS: "${NEXT_PUBLIC_VAD_START_DEBOUNCE_MS:-160}"
+        NEXT_PUBLIC_VAD_MIN_SPEECH_MS: "${NEXT_PUBLIC_VAD_MIN_SPEECH_MS:-200}"
+        NEXT_PUBLIC_VAD_HANGOVER_MS: "${NEXT_PUBLIC_VAD_HANGOVER_MS:-750}"
+        NEXT_PUBLIC_VAD_MAX_TURN_MS: "${NEXT_PUBLIC_VAD_MAX_TURN_MS:-30000}"
+        NEXT_PUBLIC_VAD_PRE_ROLL_MS: "${NEXT_PUBLIC_VAD_PRE_ROLL_MS:-400}"
+        NEXT_PUBLIC_VAD_PLAYBACK_THRESHOLD_MULTIPLIER: "${NEXT_PUBLIC_VAD_PLAYBACK_THRESHOLD_MULTIPLIER:-2.5}"
+        NEXT_PUBLIC_VAD_PLAYBACK_SUPPRESS_AFTER_END_MS: "${NEXT_PUBLIC_VAD_PLAYBACK_SUPPRESS_AFTER_END_MS:-300}"
+    ports:
+      - "3000:3000"
+    depends_on:
+      agent:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+  speaches:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
+    # Serves both /v1/audio/transcriptions (faster-whisper) and
+    # /v1/audio/speech (Kokoro) on this one port. No credential is required.
+    volumes:
+      # Same path upstream used for this pinned image: the container's user is
+      # not root, so the Hugging Face cache lives under its own home directory.
+      - speaches-cache:/home/ubuntu/.cache/huggingface/hub
+    healthcheck:
+      # curl ships in this pinned image; upstream's own compose profile used it.
+      test: ["CMD", "curl", "--fail", "http://127.0.0.1:8000/health"]
+      interval: 10s
+      timeout: 10s
+      retries: 18
+      start_period: 30s
+    restart: unless-stopped
+
+  # One-shot: download both speech models into the shared volume, then exit 0.
+  # Two separate invocations, matching upstream's proven pattern: the CLI takes
+  # one model per call, so a single call with two arguments would silently leave
+  # the TTS model out and make the first spoken reply fail on a cold download.
+  speaches-models:
+    image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
+    environment:
+      SPEACHES_BASE_URL: http://speaches:8000
+      STT_MODEL: ${STT_MODEL:-Systran/faster-whisper-small}
+      TTS_MODEL: ${TTS_MODEL:-speaches-ai/Kokoro-82M-v1.0-ONNX}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        uv run speaches-cli model download "$${STT_MODEL}" &&
+        uv run speaches-cli model download "$${TTS_MODEL}"
+    volumes:
+      - speaches-cache:/home/ubuntu/.cache/huggingface/hub
+    restart: "no"
+
+volumes:
+  speaches-cache:

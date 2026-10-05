@@ -42,6 +42,14 @@ fork: own history, pinned attribution, upstream layout preserved.
   `openai/gpt-oss-120b` on Groq during the probe.
 - OmniRoute `/v1/audio/speech` rejects every `provider/model` catalog id and `/v1/audio/transcriptions`
   404s for `nvidia/openai/whisper-large-v3`; the OpenAI-named routes report `No credentials for provider: openai`.
+- The agent replaces the upstream `apps/gateway` **process**: `@open-voice/agent` is a composition root
+  that embeds the vendored gateway as a library. The runtime image must build `packages/agent`, and the
+  compose file must run the agent, not `dist/server.cjs` from the upstream gateway.
+- Upstream adapters fall back to `process.env.TTS_VOICE` when no voice is injected, so the deployment
+  MUST set `TTS_VOICE` explicitly or it will silently pick up a stray value. Upstream default `alloy` is
+  an OpenAI voice that does not exist in Kokoro.
+- Realtime STT cannot be redirected: `OpenAIRealtimeSTTProvider` always dials its own OpenAI-hosted
+  WebSocket URL. It stays disabled in this topology.
 
 ## Tasks
 
@@ -121,8 +129,8 @@ One work-unit commit per task on the feature branch, Conventional Commits, tests
 
 | Task | Commit sha | Checks |
 | --- | --- | --- |
-| T1 | pending | pending |
-| T2 | pending | pending |
+| T1 | `e852556` | `pnpm install`, `pnpm -r typecheck` 4/4, `pnpm test` 11 files / 63 tests — pass |
+| T2 | `e40b6c9` | `pnpm -r typecheck` 5/5, `pnpm test` 15 files / 105 tests, `pnpm build`, `pnpm check`; built binary fails fast without key, serves `/healthz`, exits 0 on SIGTERM |
 | T3 | pending | pending |
 | T4 | pending | pending |
 | T5 | pending | pending |

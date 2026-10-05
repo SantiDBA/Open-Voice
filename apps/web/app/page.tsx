@@ -53,6 +53,71 @@ interface QueuedAudioChunk {
   mimeType: string;
 }
 
+/**
+ * One entry in the catalog: a numbered turn, the request that made it, and the
+ * words on both sides of it. Turns are numbered by request id so the number is
+ * stable for the life of the session and survives a reload-free re-render.
+ */
+interface CatalogTurn {
+  fac: number;
+  requestId: string;
+  spoken: string;
+  replied: string;
+  interrupted: boolean;
+  /** Which voice the agent is answering in, derived from its own words. */
+  language: "ES" | "EN" | null;
+}
+
+/**
+ * Which voice will read a reply aloud. The agent routes its speech provider by
+ * the language of the text, so this mirrors that choice instead of guessing:
+ * Spanish-only characters settle it, otherwise the more frequent function word
+ * wins, and an undecidable reply reports null rather than inventing an accent.
+ */
+function replyLanguage(text: string): "ES" | "EN" | null {
+  if (text.trim().length === 0) return null;
+  if (/[ñ¿¡áéíóúü]/i.test(text)) return "ES";
+  const words = text.toLowerCase().split(/[^a-záéíóúüñ']+/);
+  const spanish = words.filter((w) =>
+    ["que", "de", "la", "el", "los", "para", "como", "con", "muy", "porque", "hola", "gracias", "puedes", "puedo"].includes(w)
+  ).length;
+  const english = words.filter((w) =>
+    ["the", "is", "and", "to", "of", "you", "what", "with", "hello", "thanks", "i", "can", "help"].includes(w)
+  ).length;
+  if (spanish > english) return "ES";
+  if (english > spanish) return "EN";
+  return null;
+}
+
+/** Folds the flat message list into numbered catalog entries. */
+function buildCatalogTurns(messages: ChatMessage[]): CatalogTurn[] {
+  const byRequest = new Map<string, CatalogTurn>();
+  for (const message of messages) {
+    let turn = byRequest.get(message.requestId);
+    if (!turn) {
+      turn = {
+        fac: byRequest.size,
+        requestId: message.requestId,
+        spoken: "",
+        replied: "",
+        interrupted: false,
+        language: null
+      };
+      byRequest.set(message.requestId, turn);
+    }
+    if (message.role === "user") {
+      turn.spoken = turn.spoken || message.content;
+    } else {
+      turn.replied += message.content;
+      turn.interrupted = Boolean(message.transient);
+    }
+  }
+  for (const turn of byRequest.values()) {
+    turn.language = replyLanguage(turn.replied || turn.spoken);
+  }
+  return [...byRequest.values()];
+}
+
 interface PlaybackQueue {
   requestId: string;
   chunks: Map<number, QueuedAudioChunk>;
@@ -902,7 +967,7 @@ export default function Home() {
     try {
       await audioContext.audioWorklet.addModule("/vad-worklet.js");
       if (!liveModeRef.current || streamRef.current !== stream) {
-        throw new Error("live mode stopped while audio worklet was loading");
+        throw new Error("live mode stopped while audio worket was loading");
       }
       const node = new AudioWorkletNode(audioContext, "open-gpt-live-vad");
       node.port.onmessage = (event: MessageEvent<VadWorkletFrame>) => {
@@ -1520,11 +1585,211 @@ export default function Home() {
     );
   }
 
+  // Plot drawing utilities
+  const plotCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const plotDataRef = useRef<Array<{x: number, y: number}>>([]);
+  const plotMaxPointsRef = useRef(200); // reasonable number for hairline plot
+  const prefersReducedMotion = useMatchMedia('(prefers-reduced-motion: reduce)');
+
+  // Custom hook for media query
+  function useMatchMedia(query: string): boolean {
+    const [matches, setMatches] = useState(() => {
+      if (typeof window === 'undefined') return false;
+      return window.matchMedia(query).matches;
+    });
+
+    useEffect(() => {
+      const mediaQuery = window.matchMedia(query);
+      const updateMatches = () => setMatches(mediaQuery.matches);
+      mediaQuery.addEventListener('change', updateMatches);
+      return () => mediaQuery.removeEventListener('change', updateMatches);
+    }, [query]);
+
+    return matches;
+  }
+
+  // Initialize canvas and start animation frame loop
+  useEffect(() => {
+    const canvas = plotCanvasRef.current;
+    if (!canvas) return;
+
+    const resizeCanvas = () => {
+      canvas.width = canvas.clientWidth;
+      canvas.height = canvas.clientHeight;
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    const drawPlot = () => {
+      if (prefersReducedMotion) {
+        if (animationFrameRef.current !== null) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+        animationFrameRef.current = null;
+        return;
+      }
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Clear canvas
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw hairline plot ink (1 pixel)
+      ctx.strokeStyle = `hsl(0, 0%, 80%)`; // --color-ink
+      ctx.lineWidth = 1;
+
+      // Draw radar-style grid (concentric rings and radial hairlines)
+      drawRadarGrid(ctx);
+
+      // Draw live trace from plot data
+      if (plotDataRef.current.length > 1) {
+        ctx.beginPath();
+        plotDataRef.current.forEach((point, index) => {
+          const x = point.x;
+          const y = point.y;
+          if (index === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            ctx.lineTo(x, y);
+          }
+        });
+        ctx.stroke();
+      }
+
+      animationFrameRef.current = requestAnimationFrame(drawPlot);
+    };
+
+    animationFrameRef.current = requestAnimationFrame(drawPlot);
+
+    return () => {
+      window.removeEventListener('resize', resizeCanvas);
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [prefersReducedMotion]);
+
+  // Draw radar-style grid
+  function drawRadarGrid(ctx: CanvasRenderingContext2D): void {
+    const width = ctx.canvas.width;
+    const height = ctx.canvas.height;
+    const centerX = width / 2;
+    const centerY = height / 2;
+    const radius = Math.min(centerX, centerY);
+
+    // Draw concentric rings
+    for (let i = 1; i <= 4; i++) {
+      const ringRadius = (radius / 4) * i;
+      ctx.beginPath();
+      ctx.arc(centerX, centerY, ringRadius, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    // Draw radial lines (every 30 degrees)
+    for (let i = 0; i < 12; i++) {
+      const angle = (i * Math.PI * 2) / 12;
+      const endX = centerX + Math.cos(angle) * radius;
+      const endY = centerY + Math.sin(angle) * radius;
+      ctx.beginPath();
+      ctx.moveTo(centerX, centerY);
+      ctx.lineTo(endX, endY);
+      ctx.stroke();
+    }
+  }
+
+  // Update plot data based on audio state
+  useEffect(() => {
+    // Generate sample data for demonstration
+    // In real implementation, this would come from audio amplitude
+    const updatePlotData = () => {
+      if (prefersReducedMotion) return;
+
+      const canvas = plotCanvasRef.current;
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Simple simulation based on state
+      let radius = 0;
+      let angle = 0;
+
+      // Determine radius based on state
+      if (liveModeRef.current && liveListeningRef.current) {
+        // Listening state - use microphone amplitude
+        // For now, use vadSnapshot RMS if available, otherwise pulse
+        const rms = vadSnapshot?.rms ?? 0;
+        radius = Math.min(0.8, 0.2 + rms * 3); // Scale RMS to reasonable radius
+      } else if (recording && !liveMode) {
+        // Push-to-talk recording
+        radius = 0.6; // Fixed medium radius
+      } else if (activeRequestId) {
+        // Processing or playing state
+        const isPlaying = isPlaybackActive();
+        if (isPlaying) {
+          // Speaking state - use playback signal if available, otherwise pulse
+          radius = 0.7; // Fixed for now - would use playback amplitude in real impl
+        } else {
+          // Thinking state
+          radius = 0.5; // Medium-low radius
+        }
+      } else {
+        // Idle state
+        radius = 0.2; // Small radius
+      }
+
+      // Convert polar to Cartesian coordinates
+      const width = canvas.width;
+      const height = canvas.height;
+      const centerX = width / 2;
+      const centerY = height / 2;
+      const maxRadius = Math.min(centerX, centerY) * 0.8;
+
+      angle += 0.05; // Slow rotation for visualization
+      const x = centerX + Math.cos(angle) * radius * maxRadius;
+      const y = centerY + Math.sin(angle) * radius * maxRadius;
+
+      // Add point to plot data
+      plotDataRef.current.push({ x, y });
+
+      // Keep only recent points
+      if (plotDataRef.current.length > plotMaxPointsRef.current) {
+        plotDataRef.current.shift();
+      }
+    };
+
+    const intervalId = setInterval(updatePlotData, 16); // ~60fps
+    return () => clearInterval(intervalId);
+  }, [liveModeRef, liveListeningRef, recording, activeRequestId, vadSnapshot]);
+
+  // Catalog state: numbered turns, the current entry, and the one color the
+  // world codes each phase with. Red is reserved for a cut and never used for
+  // anything else.
+  const turns = buildCatalogTurns(messages);
+  const currentTurn =
+    turns.find((turn) => turn.requestId === activeRequestId) ??
+    turns[turns.length - 1] ??
+    null;
+  const listening =
+    (liveModeRef.current && liveListeningRef.current) ||
+    (recording && !liveMode);
+  const speaking = isPlaybackActive();
+  const phase = listening
+    ? "transcribing"
+    : speaking
+      ? "speaking"
+      : activeRequestId
+        ? "thinking"
+        : "idle";
+
   return (
     <main className="shell">
       <header className="header">
         <div>
-          <h1>OpenGPT Live</h1>
+          <h1>Open Voice</h1>
           <p>Live voice, streaming transcripts, and barge-in over WebSocket</p>
         </div>
         <div className={connected ? "status connected" : "status"}>
@@ -1552,41 +1817,180 @@ export default function Home() {
         ) : null}
       </section>
 
-      <LatencyPanel snapshot={latencySnapshot} />
-      <VadPanel
-        snapshot={vadSnapshot}
-        liveMode={liveMode}
-        adaptiveEnabled={vadConfig.adaptiveEnabled}
-      />
+      <main className="main">
+        {/* Left column - navigation (list of turn numbers) */}
+        <nav className="nav" aria-label="Conversation history">
+          <h2>Turns</h2>
+          {turns.length === 0 ? (
+            <p className="nav-empty">No entries yet.</p>
+          ) : (
+            <ul>
+              {turns.map((turn) => {
+                const isCurrent = turn.requestId === activeRequestId;
+                return (
+                  <li key={turn.requestId}>
+                    <button
+                      aria-label={`Turn ${turn.fac}, ${
+                        turn.spoken || "no words captured"
+                      }`}
+                      aria-current={isCurrent ? "true" : undefined}
+                      className={[
+                        isCurrent ? "active" : "",
+                        turn.interrupted ? "struck" : ""
+                      ]
+                        .filter(Boolean)
+                        .join(" ")}
+                    >
+                      <span className="nav-fac">
+                        {String(turn.fac).padStart(3, "0")}
+                      </span>
+                      <span className="nav-preview">
+                        {turn.replied || turn.spoken || "…"}
+                      </span>
+                      {turn.interrupted ? (
+                        <span className="visually-hidden">interrupted</span>
+                      ) : null}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </nav>
 
-      <section className="messages" aria-live="polite">
-        {messages.length === 0 ? (
-          <p className="empty">
-            Type a message, hold to talk, or turn on Live mode.
-          </p>
-        ) : (
-          messages.map((message) => (
-            <article
-              className={`message ${message.role}${message.transient ? " transient" : ""}`}
-              key={message.id}
-            >
-              <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
-              {message.source === "audio" ? <span>transcribed speech</span> : null}
-              <p>{message.content || "..."}</p>
-            </article>
-          ))
-        )}
-      </section>
+        {/* Center work area - plot */}
+        <section className="plot-container" aria-label="Agent presence visualization">
+          <canvas 
+            className="plot-canvas"
+            ref={plotCanvasRef}
+            width="800"
+            height="600"
+            aria-hidden="true"
+          />
+        </section>
 
-      {recordingStatus ? <p className="notice">{recordingStatus}</p> : null}
-      {manualPlaybackRequestId ? (
-        <button className="playbackButton" type="button" onClick={playBlockedAudio}>
-          播放语音回复
-        </button>
-      ) : null}
-      {micError ? <p className="error">{micError}</p> : null}
-      {error ? <p className="error">{error}</p> : null}
+        {/* Right rail - current entry readout and instrumentation */}
+        <aside className="sidebar">
+          {/* Current entry readout */}
+          <div className="entry-readout">
+            {/* Entry number - the world's only headline */}
+            <div className="entry-number">
+              {currentTurn ? String(currentTurn.fac).padStart(3, "0") : "—"}
+            </div>
 
+            {/* Color-code strip: exactly one color per phase, red reserved for a cut */}
+            <div
+              className="entry-color-strip"
+              data-phase={phase}
+              style={{
+                backgroundColor: `var(--color-${phase})`
+              }}
+            />
+
+            {/* Language mark: which voice is answering, derived from its words */}
+            <div className="entry-language">
+              {currentTurn?.language ?? "··"}
+            </div>
+
+            {/* Turn timings as tabular numbers */}
+            <div className="entry-timings">
+              <div>
+                <div>STT</div>
+                <div>{latencySnapshot?.sttFirstPartialMs ?? '—'} ms</div>
+              </div>
+              <div>
+                <div>LLM</div>
+                <div>{latencySnapshot?.llmFirstDeltaMs ?? '—'} ms</div>
+              </div>
+              <div>
+                <div>TTS</div>
+                <div>{latencySnapshot?.ttsFirstAudioMs ?? '—'} ms</div>
+              </div>
+              <div>
+                <div>Total</div>
+                <div>{latencySnapshot?.speechEndToFirstAudioMs ?? '—'} ms</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Instrumentation - quiet line inside right rail */}
+          <div className="instrumentation">
+            <section className="latencyPanel" aria-label="Voice latency metrics">
+              <div className="latencyHeading">
+                <strong>Latency</strong>
+                <span>
+                  {latencySnapshot
+                    ? `${latencySnapshot.kind.toUpperCase()} · ${latencySnapshot.status}`
+                    : "waiting for a request"}
+                </span>
+              </div>
+              <dl>
+                <div>
+                  <dt>STT first partial</dt>
+                  <dd>{latencySnapshot?.sttFirstPartialMs === undefined ? "—" : `${latencySnapshot.sttFirstPartialMs} ms`}</dd>
+                </div>
+                <div>
+                  <dt>Final transcript</dt>
+                  <dd>{latencySnapshot?.sttFinalMs === undefined ? "—" : `${latencySnapshot.sttFinalMs} ms`}</dd>
+                </div>
+                <div>
+                  <dt>LLM first token</dt>
+                  <dd>{latencySnapshot?.llmFirstDeltaMs === undefined ? "—" : `${latencySnapshot.llmFirstDeltaMs} ms`}</dd>
+                </div>
+                <div>
+                  <dt>TTS first audio</dt>
+                  <dd>{latencySnapshot?.ttsFirstAudioMs === undefined ? "—" : `${latencySnapshot.ttsFirstAudioMs} ms`}</dd>
+                </div>
+                <div>
+                  <dt>Speech end → audio</dt>
+                  <dd>{latencySnapshot?.speechEndToFirstAudioMs === undefined ? "—" : `${latencySnapshot.speechEndToFirstAudioMs} ms`}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="vadPanel" aria-label="Voice activity detector status">
+              <div className="vadHeading">
+                <strong>Voice activity</strong>
+                <span>
+                  {!liveModeRef.current
+                    ? "off"
+                    : vadSnapshot?.state === "calibrating"
+                      ? `calibrating ${Math.round(vadSnapshot?.calibrationProgress ?? 0) * 100}%`
+                      : (vadSnapshot?.state ?? "starting")}
+                </span>
+              </div>
+              <dl>
+                <div>
+                  <dt>State</dt>
+                  <dd>
+                    {!liveModeRef.current
+                      ? "off"
+                      : vadSnapshot?.state === "calibrating"
+                        ? `calibrating ${Math.round(vadSnapshot?.calibrationProgress ?? 0) * 100}%`
+                        : (vadSnapshot?.state ?? "starting")}
+                  </dd>
+                </div>
+                <div>
+                  <dt>RMS</dt>
+                  <dd>{formatVadLevel(vadSnapshot?.rms ?? undefined)}</dd>
+                </div>
+                <div>
+                  <dt>Noise floor</dt>
+                  <dd>{formatVadLevel(vadSnapshot?.noiseFloor ?? undefined)}</dd>
+                </div>
+                <div>
+                  <dt>Speech / silence</dt>
+                  <dd>
+                    {formatVadLevel(vadSnapshot?.speechThreshold ?? undefined)} / {formatVadLevel(vadSnapshot?.silenceThreshold ?? undefined)}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </aside>
+      </main>
+
+      {/* Composer - pinned to bottom */}
       <form
         className="composer"
         onSubmit={(event) => {
@@ -1604,7 +2008,7 @@ export default function Home() {
           Send
         </button>
         <button
-          className={liveMode ? "recording" : "secondary"}
+          className={liveMode ? "live-on" : "secondary"}
           type="button"
           disabled={!connected || (!liveMode && recording)}
           onClick={() => {
@@ -1643,6 +2047,36 @@ export default function Home() {
           Stop
         </button>
       </form>
+
+      {/* Notices and errors */}
+      {recordingStatus ? <p className="notice">{recordingStatus}</p> : null}
+      {manualPlaybackRequestId ? (
+        <button className="playbackButton" type="button" onClick={playBlockedAudio}>
+          Play audio response
+        </button>
+      ) : null}
+      {micError ? <p className="error">{micError}</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+
+      {/* Original messages area - hidden per CSS */}
+      <section className="messages" aria-live="polite">
+        {messages.length === 0 ? (
+          <p className="empty">
+            Type a message, hold to talk, or turn on Live mode.
+          </p>
+        ) : (
+          messages.map((message) => (
+            <article
+              className={`message ${message.role}${message.transient ? " transient" : ""}`}
+              key={message.id}
+            >
+              <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
+              {message.source === "audio" ? <span>transcribed speech</span> : null}
+              <p>{message.content || "..."}</p>
+            </article>
+          ))
+        )}
+      </section>
     </main>
   );
 }
@@ -1712,16 +2146,16 @@ function VadPanel({
         </div>
         <div>
           <dt>RMS</dt>
-          <dd>{formatVadLevel(snapshot?.rms)}</dd>
+          <dd>{formatVadLevel(snapshot?.rms ?? undefined)}</dd>
         </div>
         <div>
           <dt>Noise floor</dt>
-          <dd>{formatVadLevel(snapshot?.noiseFloor)}</dd>
+          <dd>{formatVadLevel(snapshot?.noiseFloor ?? undefined)}</dd>
         </div>
         <div>
           <dt>Speech / silence</dt>
           <dd>
-            {formatVadLevel(snapshot?.speechThreshold)} / {formatVadLevel(snapshot?.silenceThreshold)}
+            {formatVadLevel(snapshot?.speechThreshold ?? undefined)} / {formatVadLevel(snapshot?.silenceThreshold ?? undefined)}
           </dd>
         </div>
       </dl>

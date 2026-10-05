@@ -1,0 +1,123 @@
+{
+  "title": "Elegí el mundo visual",
+  "question": "El roll asignó Intertítulos bilingües. Quedátelo, tomá un alterno, o volvé a tirar.",
+  "options": [
+    {
+      "id": "assigned",
+      "label": "Intertítulos bilingües",
+      "kicker": "THE ROLL",
+      "lineage": "craft del subtitulado cinematográfico: intertítulos, guion de doblaje, retícula de líneas base",
+      "thesis": "Cada respuesta del agente es un intertítulo: la línea hablada encendida y grande, debajo en fantasma la línea que la provocó, sobre una retícula cuyas líneas base quedan a la vista.",
+      "palette": ["#14161A", "#EDE8DD", "#F2A93B", "#C8342B"],
+      "materials": ["proyección de sala", "retícula de líneas base", "cartulina opaca"],
+      "viewport": "Una placa de intertítulo ocupa los dos tercios superiores: la línea hablada a escala grande con su marca de idioma en la esquina, la provocadora debajo en fantasma; columna de diálogo abajo y la entrada de texto siempre visible.",
+      "risk": "Los subtítuloscqinvitan a leerse: si la placa crece demasiado, la voz deja de sentirse viva y la pantalla se vuelve un documento.",
+      "raised": [
+        { "from": "challenger-crouwel", "raise": "ARMATURE: la línea base y la medida del intertítulo quedan a la vista como filetes dibujados a un píxel exacto; la retícula es parte del diseño, no un detalle escondido." },
+        { "from": "challenger-emigre", "raise": "PIXEL HONESTY: toda la geometría de estado se ajusta a píxeles enteros; nada se desenfoca hasta volverse ambiguo." }
+      ],
+      "wireframe": {
+        "cols": 12, "rows": 10,
+        "regions": [
+          { "label": "barra de estado", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "placa de intertítulo", "x": 1, "y": 2, "w": 10, "h": 4, "accent": true },
+          { "label": "marca de idioma", "x": 10, "y": 2, "w": 1, "h": 1, "accent": true },
+          { "label": "diálogo", "x": 1, "y": 7, "w": 7, "h": 2 },
+          { "label": "entrada de texto", "x": 8, "y": 7, "w": 4, "h": 2 },
+          { "label": "riel de instrumentación", "x": 0, "y": 9, "w": 12, "h": 1 }
+        ]
+      }
+    },
+    {
+      "id": "model-pick",
+      "label": "Specimen fonético",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "el alfabeto fonético internacional y las planchas de espécimen tipográfico",
+      "thesis": "Lo que el agente habla se ve como notación fonética: grafemas legibles en voz alta, y cada corte de palabra deja la marca de respiración.",
+      "palette": ["#F4F1EA", "#1A1A1A", "#2F5FD0"],
+      "materials": ["planchas de espécimen", "cifras romanas", "regla de resalte"],
+      "viewport": "Una plancha de espécimen a página entera donde la línea hablada se compone en notación grande y el diálogo vive como tabla de anotaciones al pie.",
+      "risk": "Se acerca al territorio ya conocido del waveform y la ola de voz en productos de audio; el riesgo es que se lea como un adorno tipográfico y no como el mecanismo.",
+      "wireframe": {
+        "cols": 12, "rows": 10,
+        "regions": [
+          { "label": "cabecera de espécimen", "x": 0, "y": 0, "w": 12, "h": 1 },
+          { "label": "notación hablada", "x": 1, "y": 2, "w": 10, "h": 3, "accent": true },
+          { "label": "leyenda de grafemas", "x": 0, "y": 6, "w": 3, "h": 4 },
+          { "label": "diálogo anotado", "x": 3, "y": 6, "w": 9, "h": 4 }
+        ]
+      }
+    },
+    {
+      "id": "challenger-ikeda",
+      "label": "Campo de datos",
+      "verdict": "competitive",
+      "lineage": "datamática: campos de barras y retículas de senos en blanco y negro puro",
+      "thesis": "La sesión entera como un campo de barras en blanco y negro con las cifras de latencia reales impresas en columnas.",
+      "palette": ["#000000", "#FFFFFF", "#BFBFBF"],
+      "materials": ["pixel nítido", "filetes de un píxel", "monoespaciada tabular"],
+      "viewport": "El campo ocupa todo el lienzo; las cifras reales de latencia van en columnas densas en el margen y el diálogo aparece sólo al seleccionar una columna.",
+      "case": "Fusiona con los datos reales que ya medimos, pero pierde en identificación: su público es el arte de datos, no alguien que habla con un asistente.",
+      "risk": "Leer como joystick de audio retro y no como herramienta de trabajo.",
+      "hero": "https://impeccable.style/worlds/cards/ikeda-datamatics-hero.webp"
+    },
+    {
+      "id": "challenger-saville",
+      "label": "Catálogo de fábrica",
+      "verdict": "competitive",
+      "lineage": "catálogos deDISCOS de fábrica: sobre negro mate, pulso de líneas blancas, números de referencia",
+      "thesis": "Cada turno de la conversación es una ficha de catálogo con número, y el estado del agente es un apilado de líneas blancas.",
+      "palette": ["#0B0B0C", "#F5F5F2", "#E4572E"],
+      "materials": ["negro mate", "trazo de línea blanca", "franjas de código de color"],
+      "viewport": "Un campo negro enorme con el índice de turnos a la izquierda y la ficha del turno actual a la derecha, cada nombre sustituido por su franja de código.",
+      "case": "Su disciplina de estado-por-código es fuerte, pero su mundo es la música underground y no el escritorio de nuestro usuario.",
+      "risk": "Se lee como fetish gráfico antes que como herramienta.",
+      "hero": "https://impeccable.style/worlds/cards/brand-identity-canon-saville-catalog-sleeve-hero.webp"
+    },
+    {
+      "id": "challenger-rw",
+      "label": "Página de reglas",
+      "verdict": "competitive",
+      "lineage": "las páginas de composición tipográfica dibujadas por un motor de filetes",
+      "thesis": "La conversación como una edición de referencia: filetes de un píxel que dibujan cada cambio de estado, tinta negra y un solo bermellón.",
+      "palette": ["#F7F4ED", "#14100E", "#D8412F"],
+      "materials": ["hueso sin blanquear", "filetes a un píxel", "detentes cuadrados"],
+      "viewport": "Una hoja de bloque corto con un riel central de marcas de estado, y un margen de anotaciones enorme donde vive la instrumentación.",
+      "case": "Es el challenger más fuerte en claridad de producto: el motor de filetes puede dibujar en vivo las líneas base reales. Aun así pierde en identificación de audiencia.",
+      "risk": "Con el margen tan presente, la voz queda en segundo plano.",
+      "hero": "https://impeccable.style/worlds/cards/rw-centre-rail-reference-setting-hero.webp"
+    },
+    {
+      "id": "challenger-crouwel",
+      "label": "Espécimen en grilla",
+      "verdict": "declined",
+      "lineage": "los carteles de Wim Crouwel construidos celda por celda",
+      "thesis": "La retícula de construcción a la vista y las letras armándose celda a celda.",
+      "palette": ["#FFFFFF", "#1A1A1A", "#2F5FD0"],
+      "kept": "La armadura visible: la retícula se muestra en vez de esconderse.",
+      "hero": "https://impeccable.style/worlds/cards/crouwel-grid-specimen-hero.webp"
+    },
+    {
+      "id": "challenger-emigre",
+      "label": "Bitmap de Emigre",
+      "verdict": "declined",
+      "lineage": "los especímenes de bitmap a escala de póster",
+      "thesis": "Letra de píxel grueso a tamaño póster y la baja resolución asumida como estética.",
+      "palette": ["#F4F1EA", "#111111", "#E4572E"],
+      "kept": "La honestidad del píxel: la geometría escala en pasos enteros y no se suaviza.",
+      "hero": "https://impeccable.style/worlds/cards/emigre-bitmap-specimen-hero.webp"
+    }
+  ],
+  "reroll": { "registers": ["safer", "bolder"] },
+  "buildPath": { "value": "code" },
+  "canon": true,
+  "canonCard": {
+    "label": "El estándar de la categoría",
+    "thesis": "La columna de chat, el botón de micrófono y los controles mínimos, ejecutados con oficio completo.",
+    "palette": ["#FFFFFF", "#111827", "#2563EB"],
+    "materials": ["grilla limpia", "tipografía de sistema"],
+    "viewport": "La disposición que cualquiera de esta categoría espera, con el mejor nivel de ejecución posible.",
+    "risk": "Indistinguible de la competencia por diseño: ése es el punto."
+  },
+  "steer": true
+}

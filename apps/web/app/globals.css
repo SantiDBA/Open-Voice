@@ -1,299 +1,766 @@
-* {
+/* Self-hosted so the display voice is a real face and nothing is fetched from
+   a third party at runtime.
+   Archivo: Omnibus-Type, SIL Open Font License 1.1
+   Azeret Mono: Displaay, SIL Open Font License 1.1 */
+/* Font faces */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/Archivo-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/Archivo-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Azeret Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: url('/fonts/AzeretMono-400.woff2') format('woff2');
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Azeret Mono';
+  font-style: normal;
+  font-weight: 500;
+  src: url('/fonts/AzeretMono-500.woff2') format('woff2');
+  font-display: swap;
+}
+/* Color palette */
+:root {
+  /* Industrial color code - each with exactly one meaning */
+  --color-idle: hsl(210, 10%, 40%);      /* steel grey - nothing is happening */
+  --color-transcribing: hsl(210, 80%, 50%); /* blue - microphone capturing */
+  --color-thinking: hsl(50, 80%, 50%);    /* yellow - model streaming, no audio yet */
+  --color-speaking: hsl(40, 60%, 80%);    /* bone - synthesized audio playing */
+  --color-cut: hsl(0, 80%, 50%);          /* red - interrupted or playback stopped (only for cut) */
+
+  /* Matte black ground */
+  --color-ground: #000000;
+  /* Hairline plot ink at one pixel - use a bright enough gray for contrast */
+  --color-ink: hsl(0, 0%, 80%);           /* light gray for plot lines */
+
+  /* Neutral colors for text */
+  --color-text-primary: hsl(0, 0%, 95%);  /* near white for primary text */
+  --color-text-secondary: hsl(0, 0%, 70%); /* medium gray for secondary text */
+  --color-border: hsl(0, 0%, 20%);        /* dark gray for borders */
+  --color-background-panel: hsl(0, 0%, 10%); /* very dark gray for panels */
+}
+
+/* Typography */
+:root {
+  /* Type scale */
+  --font-display: Archivo, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: 'Azeret Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Sizes */
+  --size-display: 6rem; /* max 6rem */
+  --size-body: 1.125rem; /* 18px */
+  --size-label: 0.875rem; /* 14px */
+  --size-caption: 0.75rem; /* 12px */
+
+  /* Weight */
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* Line height */
+  --leading-none: 1;
+  --leading-tight: 1.25;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.75;
+
+  /* Tracking (letter-spacing) */
+  --tracking-tight: -0.03em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.05em;
+
+  /* Measure */
+  --measure-body: 70ch; /* target 65-75ch */
+}
+
+/* Reset and base */
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
-  background: #f7f7f4;
-  color: #191919;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  padding: 0;
+  background-color: var(--color-ground);
+  color: var(--color-text-primary);
+  font-family: var(--font-display);
+  font-size: var(--size-body);
+  line-height: var(--leading-normal);
 }
 
-button,
-input,
-textarea {
-  font: inherit;
+/* Ensure text selection and caret match palette */
+::selection {
+  background-color: var(--color-transcribing);
+  color: var(--color-ground);
 }
 
-button {
-  cursor: pointer;
+::-moz-selection {
+  background-color: var(--color-transcribing);
+  color: var(--color-ground);
 }
 
-button:disabled {
-  cursor: not-allowed;
-  opacity: 0.55;
+caret {
+  color: var(--color-text-primary);
 }
 
-.shell {
-  display: flex;
-  min-height: 100vh;
-  flex-direction: column;
-  gap: 16px;
-  margin: 0 auto;
-  max-width: 920px;
-  padding: 32px 20px;
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-background-panel);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-text-secondary);
 }
 
-.header {
-  align-items: flex-start;
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+/* Firefox scrollbar */
+* {
+  scrollbar-color: var(--color-border) var(--color-background-panel);
+  scrollbar-width: thin;
 }
 
-.header h1 {
-  font-size: 32px;
-  line-height: 1.1;
-  margin: 0;
+/* Utility classes */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
-.header p {
-  color: #5f5f5f;
-  margin: 8px 0 0;
-}
-
-.status {
-  border: 1px solid #b8b8b8;
-  border-radius: 999px;
-  color: #5f5f5f;
-  min-width: 118px;
-  padding: 8px 12px;
+.text-center {
   text-align: center;
 }
 
-.status.connected {
-  border-color: #16794c;
-  color: #16794c;
+.text-right {
+  text-align: right;
+}
+
+.text-nowrap {
+  white-space: nowrap;
+}
+
+.overflow-hidden {
+  overflow: hidden;
+}
+
+/* Layout containers */
+.shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background-color: var(--color-ground);
+  color: var(--color-text-primary);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.header h1 {
+  font-size: var(--size-display);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-tight);
+  margin: 0;
+  letter-spacing: var(--tracking-tight);
+}
+
+.header p {
+  margin: 0.5rem 0 0;
+  font-size: var(--size-label);
+  color: var(--color-text-secondary);
 }
 
 .meta {
-  color: #666;
   display: flex;
   flex-wrap: wrap;
-  font-size: 14px;
-  gap: 12px;
+  gap: 1rem;
+  font-size: var(--size-label);
+  color: var(--color-text-secondary);
+  padding: 1rem;
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-background-panel);
 }
 
-.latencyPanel {
-  background: #fff;
-  border: 1px solid #deded8;
-  border-radius: 8px;
-  padding: 12px 14px;
+.status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--size-label);
+  font-weight: var(--weight-medium);
+  border: 1px solid var(--color-border);
+  border-radius: 9999px; /* but we want no corner radius - wait, brief says no corner radius anywhere */
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
 }
 
-.vadPanel {
-  background: #fff;
-  border: 1px solid #deded8;
-  border-radius: 8px;
-  padding: 12px 14px;
+/* Override to remove border radius */
+.status {
+  border-radius: 0;
 }
 
-.vadHeading {
-  align-items: baseline;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
+/* Status colors */
+.status.connected {
+  border-color: var(--color-transcribing);
+  color: var(--color-transcribing);
+}
+.status.connecting,
+.status.reconnecting {
+  border-color: var(--color-thinking);
+  color: var(--color-thinking);
+}
+.status.disconnected {
+  border-color: var(--color-cut);
+  color: var(--color-cut);
 }
 
-.vadHeading span {
-  color: #767676;
-  font-size: 12px;
-}
-
-.vadPanel dl {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 10px 0 0;
-}
-
-.vadPanel dl div {
-  background: #f7f7f4;
-  border-radius: 6px;
-  padding: 8px;
-}
-
-.vadPanel dt {
-  color: #666;
-  font-size: 12px;
-}
-
-.vadPanel dd {
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  margin: 4px 0 0;
-}
-
-.latencyHeading {
-  align-items: baseline;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.latencyHeading span {
-  color: #767676;
-  font-size: 12px;
-}
-
-.latencyPanel dl {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 8px;
-  margin: 10px 0 0;
-}
-
-.latencyPanel dl div {
-  background: #f7f7f4;
-  border-radius: 6px;
-  padding: 8px;
-}
-
-.latencyPanel dt {
-  color: #666;
-  font-size: 12px;
-}
-
-.latencyPanel dd {
-  font-size: 15px;
-  font-variant-numeric: tabular-nums;
-  margin: 4px 0 0;
-}
-
-.messages {
-  background: #fff;
-  border: 1px solid #deded8;
-  border-radius: 8px;
+/* Main layout */
+.main {
   display: flex;
   flex: 1;
+  overflow: hidden;
+}
+
+/* Left column - navigation (list of turn numbers) */
+.nav {
+  width: 20%;
+  min-width: 180px;
+  max-width: 220px;
+  border-right: 1px solid var(--color-border);
+  padding: 1.5rem;
+  overflow-y: auto;
+  background-color: var(--color-background-panel);
+}
+
+.nav h2 {
+  font-size: var(--size-label);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin: 0 0 1rem 0;
+  color: var(--color-text-secondary);
+}
+
+.nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav li {
+  margin: 0.5rem 0;
+}
+
+.nav button {
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0;
+  transition: background-color 0.2s ease;
+}
+
+.nav button:hover,
+.nav button:focus-visible {
+  background-color: var(--color-background-panel);
+  /* slightly lighter */
+  background-color: hsl(0, 0%, 15%);
+}
+
+.nav button[aria-selected="true"] {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+}
+
+/* Center work area - plot */
+.plot-container {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background-color: var(--color-ground);
+}
+
+/* The plot itself - we'll create a canvas */
+.plot-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Right rail - current entry readout and instrumentation */
+.sidebar {
+  width: 260px;
+  border-left: 1px solid var(--color-border);
+  padding: 1.5rem;
+  overflow-y: auto;
+  background-color: var(--color-background-panel);
+  display: flex;
   flex-direction: column;
-  gap: 12px;
-  min-height: 420px;
-  padding: 16px;
 }
 
-.empty {
-  color: #767676;
-  margin: 0;
+/* Current entry readout */
+.entry-readout {
+  flex-shrink: 0;
+  margin-bottom: 2rem;
 }
 
-.message {
-  border: 1px solid #dfdfdf;
-  border-radius: 8px;
-  padding: 12px;
+.entry-number {
+  font-family: var(--font-display);
+  font-size: 5rem; /* large number */
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+  letter-spacing: var(--tracking-tight);
+  margin: 0 0 0.5rem 0;
 }
 
-.message.user {
-  background: #f0f6ff;
+.entry-color-strip {
+  height: 4px;
+  margin: 1rem 0;
+  border-radius: 0;
 }
 
-.message.assistant {
-  background: #fafafa;
+.entry-language {
+  font-family: var(--font-display);
+  font-size: var(--size-label);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wide);
+  margin: 0.5rem 0;
 }
 
-.message.transient {
-  color: #6f6f6f;
-  font-style: italic;
-}
-
-.message strong {
-  display: inline-block;
-  font-size: 13px;
-  margin-bottom: 6px;
-}
-
-.message span {
-  color: #666;
-  display: inline-block;
-  font-size: 12px;
-  margin-left: 8px;
-}
-
-.message p {
-  line-height: 1.5;
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.notice {
-  background: #f2f7ff;
-  border: 1px solid #b8cbea;
-  border-radius: 8px;
-  color: #264c7d;
-  margin: 0;
-  padding: 10px 12px;
-}
-
-.error {
-  background: #fff0f0;
-  border: 1px solid #e1b4b4;
-  border-radius: 8px;
-  color: #8a1f1f;
-  margin: 0;
-  padding: 10px 12px;
-}
-
-.playbackButton {
-  align-self: flex-start;
-  background: #191919;
-  border: 1px solid #191919;
-  border-radius: 8px;
-  color: #fff;
-  padding: 10px 14px;
-}
-
-.composer {
+.entry-timings {
   display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
 }
 
-.composer input {
-  border: 1px solid #cfcfc8;
-  border-radius: 8px;
-  padding: 12px;
+/* Instrumentation panel - quiet line inside right rail */
+.instrumentation {
+  flex-shrink: 0;
+  margin-top: auto; /* push to bottom of sidebar, above composer? */
+  border-top: 1px solid var(--color-border);
+  padding-top: 1rem;
+}
+
+/* Composer - pinned to bottom */
+.composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-background-panel);
 }
 
 .composer button {
-  background: #191919;
-  border: 1px solid #191919;
-  border-radius: 8px;
-  color: #fff;
-  min-width: 84px;
-  padding: 0 16px;
+  padding: 0.75rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-small, 0.8125rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.composer .secondary {
-  background: #fff;
-  color: #191919;
+.composer button:hover:not(:disabled) {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
 }
 
-.composer .recording {
-  background: #a22;
-  border-color: #a22;
-  color: #fff;
+.composer button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.composer button:focus-visible {
+  outline: 1px solid var(--color-thinking);
+  outline-offset: 2px;
+}
+
+.composer button.primary {
+  border-color: var(--color-cut);
+  color: var(--color-cut);
+}
+
+.composer input {
+  flex: 1 1 200px;
+  min-width: 120px;
+  padding: 0.75rem 1rem;
+  font: inherit;
+  font-size: var(--size-body);
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  background-color: var(--color-background-panel);
+  color: var(--color-text-primary);
+}
+
+.composer input::placeholder {
+  color: var(--color-text-secondary);
+}
+
+.composer button {
+  flex: 0 0 auto;
+  padding: 0.75rem 1.5rem;
+  font: inherit;
+  font-size: var(--size-label);
+  font-weight: var(--weight-medium);
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.composer button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Button variants */
+.composer button[type="submit"] {
+  background-color: var(--color-text-primary);
+  color: var(--color-ground);
+}
+.composer button[type="submit"]:hover:not(:disabled),
+.composer button[type="submit"]:focus-visible:not(:disabled) {
+  background-color: var(--color-background-panel);
+  color: var(--color-text-primary);
+}
+
+.composer button.live-on {
+  background-color: var(--color-cut);
+  color: var(--color-text-primary);
+}
+.composer button.live-on:hover:not(:disabled),
+.composer button.live-on:focus-visible:not(:disabled) {
+  background-color: hsl(0, 80%, 40%); /* darker red */
+  color: var(--color-text-primary);
+}
+
+.composer button.secondary {
+  background-color: var(--color-background-panel);
+  color: var(--color-text-primary);
+}
+.composer button.secondary:hover:not(:disabled),
+.composer button.secondary:focus-visible:not(:disabled) {
+  background-color: hsl(0, 0%, 15%);
+  color: var(--color-text-primary);
+}
+
+.composer button.recording {
+  background-color: var(--color-cut);
+  color: var(--color-text-primary);
+}
+.composer button.recording:hover:not(:disabled),
+.composer button.recording:focus-visible:not(:disabled) {
+  background-color: hsl(0, 80%, 40%);
+  color: var(--color-text-primary);
+}
+
+/* Messages area - we'll repurpose for transcript display in sidebar? */
+.messages {
+  /* We'll hide the original messages and use our own layout */
+  display: none;
+}
+
+/* Notice and error styles */
+.notice,
+.error {
+  padding: 1rem;
+  margin: 1rem 0;
+  border-radius: 0;
+  border: 1px solid transparent;
+}
+.notice {
+  background-color: hsl(210, 20%, 15%);
+  color: hsl(210, 70%, 80%);
+  border-color: hsl(210, 50%, 30%);
+}
+.error {
+  background-color: hsl(0, 50%, 15%);
+  color: hsl(0, 70%, 70%);
+  border-color: hsl(0, 50%, 30%);
+}
+
+/* Latency and VAD panels - we'll restyle them to fit in instrumentation */
+.latencyPanel,
+.vadPanel {
+  background-color: var(--color-background-panel);
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  margin-bottom: 1rem;
+  overflow: hidden;
+}
+
+.latencyHeading,
+.vadHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--size-label);
+  font-weight: var(--weight-medium);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.latencyHeading span,
+.vadHeading span {
+  font-size: var(--size-caption);
+  color: var(--color-text-secondary);
+}
+
+.latencyPanel dl,
+.vadPanel dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.75rem;
+}
+
+.latencyPanel dl div,
+.vadPanel dl div {
+  background-color: var(--color-background-panel);
+  border-radius: 0;
+  padding: 0.5rem;
+}
+
+.latencyPanel dt,
+.vadPanel dt {
+  font-size: var(--size-caption);
+  color: var(--color-text-secondary);
+  font-weight: var(--weight-regular);
+}
+
+.latencyPanel dd,
+.vadPanel dd {
+  font-size: var(size-body);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  margin: 0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 1024px) {
+  .main {
+    flex-direction: column;
+  }
+  .nav,
+  .sidebar {
+    width: 100%;
+    max-width: none;
+    border-right: none;
+    border-left: none;
+  }
+  .nav {
+    border-bottom: 1px solid var(--color-border);
+    height: 200px;
+  }
+  .sidebar {
+    border-top: 1px solid var(--color-border);
+    height: 200px;
+  }
+  .plot-container {
+    flex: 1;
+    min-height: 300px;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Three columns do not survive a narrow viewport: stack them and let the
+     shell grow instead of clipping the readout behind the composer. */
+  .main {
+    flex-direction: column;
+    overflow: visible;
+  }
+  .nav {
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    max-height: 30vh;
+  }
+  .sidebar {
+    width: 100%;
+    max-width: none;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
+  }
+  .plot-container {
+    min-height: 320px;
+  }
 }
 
 @media (max-width: 640px) {
   .header {
     flex-direction: column;
+    align-items: stretch;
   }
-
   .composer {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+    position: static;
   }
-
   .composer button {
-    min-height: 44px;
-  }
+  padding: 0.75rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-small, 0.8125rem);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-primary);
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  cursor: pointer;
+  transition: border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    color 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
 
-  .latencyPanel dl {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.composer button:hover:not(:disabled) {
+  border-color: var(--color-ink);
+  color: var(--color-ink);
+}
 
-  .vadPanel dl {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.composer button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.composer button:focus-visible {
+  outline: 1px solid var(--color-thinking);
+  outline-offset: 2px;
+}
+
+.composer button.primary {
+  border-color: var(--color-cut);
+  color: var(--color-cut);
+}
+
+.composer input {
+    width: 100%;
   }
+  .composer button {
+    width: 100%;
+  }
+}
+/* ── Catalog entries in the index ─────────────────────────────────────────── */
+.nav-empty {
+  font-family: var(--font-mono);
+  font-size: var(--size-small, 0.8125rem);
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.nav li button {
+  display: grid;
+  grid-template-columns: 3.25rem 1fr;
+  align-items: baseline;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid transparent;
+  border-radius: 0;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+  transition: color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.nav li button:hover {
+  color: var(--color-ink);
+}
+
+.nav li button:focus-visible {
+  outline: 1px solid var(--color-thinking);
+  outline-offset: 2px;
+}
+
+.nav li button.active {
+  color: var(--color-ink);
+  border-left-color: var(--color-thinking);
+}
+
+/* A cut is a fact about the conversation, so the strike stays in the index. */
+.nav li button.struck .nav-preview {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-cut);
+  text-decoration-thickness: 1px;
+}
+
+.nav li button.struck .nav-fac {
+  color: var(--color-cut);
+}
+
+.nav-fac {
+  font-family: var(--font-mono);
+  font-size: var(--size-small, 0.8125rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+
+.nav-preview {
+  font-size: var(--size-small, 0.8125rem);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entry-color-strip[data-phase="cut"] {
+  background-color: var(--color-cut);
 }

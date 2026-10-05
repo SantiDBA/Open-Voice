@@ -294,7 +294,7 @@ token, TTS first sentence, playback.
 
 | Stage | Before | Now | How |
 | --- | ---: | ---: | --- |
-| VAD hangover before a turn closes | 750 ms | **400 ms** | `NEXT_PUBLIC_VAD_HANGOVER_MS` |
+| VAD hangover before a turn closes | 750 ms | 750 ms | **deliberately not lowered, see below** |
 | Batch STT, 2.4 s of real speech | 9.4 s | **2.9 s** | `STT_MODEL` moved from `faster-whisper-small` to `faster-whisper-base` |
 | LLM first token, typical | 1.3 s | **0.6 – 0.9 s** | `LLM_MODEL` moved from `auto/best-chat` to `auto/chat` |
 | TTS first chunk after first token | 4.2 s to first sound | **3.1 s** | `TTS_SEGMENT_MIN_LENGTH` lowered from 24 to 10 |
@@ -314,6 +314,17 @@ Trading further:
   varies: the same request was measured from 536 ms to 7 s. Pinning an explicit provider removes the
   tail: `LLM_MODEL=groq/openai/gpt-oss-20b` measured 426 / 511 / 1935 ms across five calls.
   `curl -s http://127.0.0.1:20128/v1/models` lists what is available.
+- `NEXT_PUBLIC_VAD_HANGOVER_MS` was tried at 400 ms to shave dead air and it made the agent
+  understand *less*. The hangover is what lets the last word finish. Transcribing one clip with its
+  tail trimmed: intact gives "una frase muy corta", 200 ms trimmed gives "muy corte", 400 ms gives
+  "muy..." and 600 ms gives "o la presentate in una frase". The 350 ms is not worth the words.
+- Do not look for a bigger STT model to buy accuracy. On this CPU model size is latency:
+  tiny 1.3 s, base 2.5 s, small 7.6 s, medium 25 s, large-v3-turbo 32–37 s. `base` is the only
+  point where the curve is not brutal. If words are still lost, `Systran/faster-whisper-small` is the
+  one step up and it costs about five seconds per turn.
+- A noisy room costs more accuracy than a small model does. The measured idle noise floor in this
+  room sits above the speech threshold at times, which is what made the VAD misfire in the first
+  place. Headphones and speaking closer to the mic beat any model swap.
 - `TTS_SEGMENT_MIN_LENGTH` and `LIVE_PARTIAL_INITIAL_INTERVAL_MS` are agent variables. Lowering the
   first makes the agent start speaking on a short fragment instead of a whole clause.
 

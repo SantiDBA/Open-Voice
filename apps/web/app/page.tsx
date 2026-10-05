@@ -1287,6 +1287,11 @@ export default function Home() {
     }
     vadSourceRef.current?.disconnect();
     vadSourceRef.current = null;
+    // The plot's tap hangs off the same source; leaving it connected keeps a
+    // live analyser running after live mode ends.
+    micAnalyserRef.current?.disconnect();
+    micAnalyserRef.current = null;
+    micLevelBufRef.current = null;
     vadMuteGainRef.current?.disconnect();
     vadMuteGainRef.current = null;
     fallbackResamplerRef.current = null;
@@ -1602,6 +1607,7 @@ export default function Home() {
   const plotCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const plotDataRef = useRef<Array<{x: number, y: number}>>([]);
+  const plotAngleRef = useRef(0);
   const plotMaxPointsRef = useRef(200); // reasonable number for hairline plot
   const prefersReducedMotion = useMatchMedia('(prefers-reduced-motion: reduce)');
 
@@ -1763,19 +1769,24 @@ export default function Home() {
         return;
       }
 
-      const angle = Date.now() / 1000;
+      // The sweep advances with the signal, not with the clock: louder speech
+      // draws a wider arc per frame, so the trace's shape encodes the sound
+      // rather than decorating a constant-rate rotation.
+      plotAngleRef.current += 0.004 + level * 0.09;
       plotDataRef.current.push({
-        x: centerX + Math.cos(angle) * level * maxRadius,
-        y: centerY + Math.sin(angle) * level * maxRadius
+        x: centerX + Math.cos(plotAngleRef.current) * level * maxRadius,
+        y: centerY + Math.sin(plotAngleRef.current) * level * maxRadius
       });
-      if (plotDataRef.current.length > plotMaxPointsRef.current) {
+      if (plotDataRef.current.length >= plotMaxPointsRef.current) {
         plotDataRef.current.shift();
       }
     };
 
     const intervalId = setInterval(updatePlotData, 16); // ~60fps
     return () => clearInterval(intervalId);
-  }, [liveModeRef, liveListeningRef, recording, activeRequestId, vadSnapshot]);
+    // No state dependency: everything this reads is a ref, so React never
+    // tears down and rebuilds the interval while live mode is running.
+  }, []);
 
   // Catalog state: numbered turns, the current entry, and the one color the
   // world codes each phase with. Red is reserved for a cut and never used for

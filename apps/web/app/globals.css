@@ -36,9 +36,10 @@
 :root {
   /* Industrial color code - each with exactly one meaning */
   --color-idle: hsl(210, 10%, 40%);      /* steel grey - nothing is happening */
-  /* blue - microphone capturing. 4.89:1 on this ground, which clears AA for
-     body text; measured against pure black it would read 4.37:1, so keep the
-     ground in mind before "simplifying" this value. */
+  /* blue - microphone capturing. This token sits on two grounds: 5.27:1 on
+     --color-ground (#000000), which clears AA, and 4.37:1 on
+     --color-background-panel, where it is used as the selection background and
+     on the color strip. Check the ground you are placing it on. */
   --color-transcribing: hsl(210, 80%, 50%);
   --color-thinking: hsl(50, 80%, 50%);    /* yellow - model streaming, no audio yet */
   --color-speaking: hsl(40, 60%, 80%);    /* bone - synthesized audio playing */

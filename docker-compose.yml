@@ -22,7 +22,12 @@ services:
     # file can point at the tracked template instead:
     #   docker compose --env-file env.example.template up -d
     environment:
-      LLM_BASE_URL: "${LLM_BASE_URL:-http://host.docker.internal:20128/v1}"
+      # No default on purpose. On rootless Docker the `host-gateway` alias
+      # resolves to an address where the host's services are not reachable, so
+      # the container has to name a host address that OmniRoute actually listens
+      # on. Fail at parse time beats starting a healthy agent with no LLM.
+      #   ${VAR:?message} makes Compose exit non-zero when the variable is unset.
+      LLM_BASE_URL: "${LLM_BASE_URL:?set LLM_BASE_URL to a host address reachable from a container; see docs/runbook.md section 2}"
       LLM_API_KEY: "${LLM_API_KEY:-}"
       LLM_MODEL: "${LLM_MODEL:-auto/best-chat}"
       STT_BASE_URL: "${STT_BASE_URL:-http://speaches:8000/v1}"
@@ -41,15 +46,18 @@ services:
       GATEWAY_PORT: "${GATEWAY_PORT:-8787}"
       ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:3000}"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
-    # OmniRoute binds 127.0.0.1 on the host only, so the container reaches it
-    # through the host-gateway alias instead of the loopback address.
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # OmniRoute listens on the host. It is reached by host address, not by the
+    # `host.docker.internal` alias: under rootless Docker that alias maps to a
+    # namespace where host-bound services refuse connections.
     ports:
       - "8787:8787"
     # Do not wait for the healthcheck to run: the agent process itself is the
     # thing that has to be alive, and a dead container never reports unhealthy.
     depends_on:
+      # Wait for Speaches itself: the download below talks to its HTTP API, so
+      # the API has to be answering before the job runs.
+      speaches:
+        condition: service_healthy
       speaches-models:
         condition: service_completed_successfully
     healthcheck:
@@ -120,9 +128,11 @@ services:
     restart: unless-stopped
 
   # One-shot: download both speech models into the shared volume, then exit 0.
-  # Two separate invocations, matching upstream's proven pattern: the CLI takes
-  # one model per call, so a single call with two arguments would silently leave
-  # the TTS model out and make the first spoken reply fail on a cold download.
+  # Upstream's own local-AI profile called `uv run speaches-cli model download`,
+  # but the pinned 0.8.3-cpu image ships an editable install with no console
+  # entry point, so that command exits 2 with "Failed to spawn: speaches-cli".
+  # Speaches exposes the same operation over HTTP, and curl is in the image.
+  # Two separate requests, one per model, both must succeed.
   speaches-models:
     image: ghcr.io/speaches-ai/speaches:0.8.3-cpu
     environment:
@@ -132,10 +142,15 @@ services:
     entrypoint: ["/bin/sh", "-c"]
     command:
       - >-
-        uv run speaches-cli model download "$${STT_MODEL}" &&
-        uv run speaches-cli model download "$${TTS_MODEL}"
+        curl --fail --silent --show-error --request POST
+        "$${SPEACHES_BASE_URL}/v1/models/$${STT_MODEL}" &&
+        curl --fail --silent --show-error --request POST
+        "$${SPEACHES_BASE_URL}/v1/models/$${TTS_MODEL}"
     volumes:
       - speaches-cache:/home/ubuntu/.cache/huggingface/hub
+    depends_on:
+      speaches:
+        condition: service_healthy
     restart: "no"
 
 volumes:

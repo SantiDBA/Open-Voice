@@ -58,10 +58,16 @@ Confirm it landed without printing the secret:
 grep -c '^LLM_API_KEY=.\+' .env    # expect 1
 ```
 
-Two values in `.env` must match this machine, and the example already sets them correctly:
+Two values must match this machine, and the example already sets them correctly:
 
-- `LLM_BASE_URL=http://host.docker.internal:20128/v1` — the container-side URL. The host-side URL is
-  `http://127.0.0.1:20128/v1`; they differ because OmniRoute binds loopback only.
+- `LLM_BASE_URL` — the container must reach OmniRoute by a **routable host address**, not by
+  `host.docker.internal`. This machine runs **rootless** Docker
+  (`rootlesskit --net=slirp4netns --disable-host-loopback`), where that alias resolves to `172.17.0.1`
+  and connections there are refused. From the host the same daemon is `http://127.0.0.1:20128/v1`.
+  Refresh the address when your IP changes:
+  ```bash
+  ip route get 1.1.1.1 | awk '{print $7; exit}'
+  ```
 - `STT_REALTIME_ENABLED=false` — realtime STT is OpenAI-only and cannot be pointed at Speaches.
 
 `STT_API_KEY` and `TTS_API_KEY` stay unset. Speaches needs no credential and the agent omits the
@@ -112,7 +118,9 @@ docker compose ps
 curl -s http://127.0.0.1:8787/healthz
 
 # 3. The agent's own startup line. expect: event agent.started with llmBaseUrl
-#    http://host.docker.internal:20128/v1. This is where a config error shows up.
+#    equal to your LLM_BASE_URL, and NO event agent.llm_unreachable. The first is
+#    where a config error shows up; the second is how a wrong host address
+#    announces itself instead of failing silently later.
 docker compose logs agent | grep agent.started
 
 # 4. The web app is being served. expect HTTP 200.
@@ -152,13 +160,15 @@ From inside the agent container, to prove the container-side URL works:
 
 ```bash
 docker compose exec agent node -e "
-fetch('http://host.docker.internal:20128/v1/models', {
+fetch(process.env.LLM_BASE_URL + '/models', {
   headers: { Authorization: 'Bearer ' + process.env.LLM_API_KEY }
 }).then(r => { console.log(r.status); process.exit(r.ok ? 0 : 1) })
  .catch(e => { console.error(e.message); process.exit(1) })"
 ```
 
-Expect `200`. This is the check that catches a missing or wrong `extra_hosts` mapping.
+Expect `200`. This is the check that catches a host address the container cannot actually open. If it
+reports `ECONNREFUSED` or `ENETUNREACH` while the host-side curl in the previous command works, the
+address in `LLM_BASE_URL` is the problem, not OmniRoute.
 
 ### 6b. Speaches serves speech synthesis (Kokoro)
 
@@ -238,8 +248,8 @@ pnpm build
 pnpm --filter @open-voice/agent start
 ```
 
-On the host use the loopback LLM URL — there is no `host.docker.internal`, and no compose network, so Speaches
-must be reachable some other way:
+On the host use the loopback LLM URL — there is no container network, so Speaches must be reachable some
+other way:
 
 ```dotenv
 LLM_BASE_URL=http://127.0.0.1:20128/v1
@@ -263,8 +273,9 @@ Two other ways to point the process at a different `.env`: `OPEN_GPT_LIVE_ENV_FI
 | `STT_API_KEY is required for api.openai.com, or point STT_BASE_URL at a self-hosted provider` | `STT_BASE_URL` unset, so it inherited the LLM base URL and failed the hosted-URL check | Set `STT_BASE_URL=http://speaches:8000/v1` explicitly |
 | Web page loads, status stays "connecting" or "reconnecting" | The browser cannot reach the agent | `NEXT_PUBLIC_GATEWAY_WS_URL` must be a URL the *browser* can use, i.e. `ws://localhost:8787`. If you changed it, you changed it at build time: rebuild with `docker compose up -d --build web` |
 | Browser console: 403 on the WebSocket handshake | `ALLOWED_ORIGINS` is set and does not contain the page origin | Use exact `http(s)://host:port` origins, no trailing slash, or clear the variable |
-| Transcript never appears, agent log shows `ECONNREFUSED` on port 20128 or `speaches:8000` | Container cannot reach the host daemon or the Speaches service | For OmniRoute, check `extra_hosts` is present in the `agent` service. For Speaches, check `docker compose ps speaches` is `healthy` |
-| `fetch failed` with `getaddrinfo ENOTFOUND host.docker.internal` | The host-gateway mapping was lost (usually a hand-edited compose file) | Restore `extra_hosts: ["host.docker.internal:host-gateway"]` |
+| Transcript never appears, agent log shows `ECONNREFUSED` on port 20128 or `speaches:8000` | Container cannot reach the host daemon or the Speaches service | For OmniRoute, `LLM_BASE_URL` must be a routable host address, not `host.docker.internal`: rootless Docker refuses host-bound services on that alias. Run the §6a container check. For Speaches, check `docker compose ps speaches` is `healthy` |
+| `agent.llm_unreachable` in the agent log, but `/healthz` says ok | The agent started and is listening, but cannot open the LLM URL | `/healthz` proves the process is alive, not that its providers work. Fix `LLM_BASE_URL`, then restart the agent |
+| `speaches-models` is `Exited (2)` with `Failed to spawn: speaches-cli` | The pinned Speaches image ships an editable install with no CLI entry point | Already handled: the job uses Speaches' HTTP API instead. If you see this, you are running an older compose file |
 | Reply streams as text but no audio plays, agent log shows an error from `/v1/audio/speech` | Voice or model id is wrong for Kokoro | Check `curl http://127.0.0.1:8000/v1/models` for the exact ids, and set `TTS_MODEL` / `TTS_VOICE` from it. `TTS_VOICE` must be set: the upstream fallback is the OpenAI voice `alloy`, which does not exist in Kokoro |
 | `speaches-models` is `Exited (1)` | The model download failed: no network, or a proxy/TLS interception on the Hugging Face CDN | `docker compose logs speaches-models` for the real error. Fix connectivity, then `docker compose up speaches-models` |
 | First turn takes tens of seconds, later turns are fast | Weights were already in the volume but the CPU model is still warming up | Expected. Both models are pre-downloaded, but the first inference still pays model load. Later turns are warm |

@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules
+.next
+dist
+coverage
+*.tsbuildinfo
+.turbo
+.playwright-cli
+
+# Local environment files and credentials
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+
+# Note: apps/, packages/, Dockerfile.gateway and Dockerfile.web are vendored
+# sources and are intentionally NOT ignored.

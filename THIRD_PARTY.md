@@ -1,0 +1,107 @@
+# Third-party notices
+
+This repository vendors third-party source code. This file records what was vendored, from where, at
+which revision, and what was changed locally afterwards.
+
+## Vendored project: open-gpt-live
+
+| Field | Value |
+| --- | --- |
+| Project | open-gpt-live |
+| Upstream repository | https://github.com/study8677/open-gpt-live |
+| Vendored revision | `dd905efed6e0b04675b4c37f302815ca050adef3` |
+| Vendored tag | none — upstream publishes no tags, so `v0.2.0` could not be checked out. The revision is the only public commit of the repository and is equivalent to the `0.2.0` version declared in `package.json`. |
+| Upstream version | `0.2.0` |
+| License | MIT — see [`LICENSE`](./LICENSE), copied verbatim from upstream. |
+| Copyright | Copyright (c) the open-gpt-live authors. The upstream `LICENSE` file holds the authoritative copyright line. |
+
+### Relationship to upstream
+
+This is a **vendored copy, not a git fork**. There is no shared git history with upstream, no
+`upstream` remote, and no upstream branch tracked here. Upstream commits are adopted by copying files
+into this repository, one commit at a time, with the vendored revision recorded in this file and in the
+commit message. The upstream directory layout is preserved so the upstream pnpm workspace, build and
+test commands keep working unchanged.
+
+### Vendored files
+
+The following paths are copies of upstream files and are byte-identical to upstream unless listed in
+the next section:
+
+```
+.gitignore                             (locally adjusted, see below)
+package.json                           (locally modified, see below)
+pnpm-workspace.yaml
+pnpm-lock.yaml
+tsconfig.base.json
+LICENSE
+README.md
+Dockerfile.gateway
+Dockerfile.web
+apps/gateway/package.json
+apps/gateway/tsconfig.json
+apps/gateway/src/config.ts
+apps/gateway/src/config.test.ts
+apps/gateway/src/environment.ts
+apps/gateway/src/environment.test.ts
+apps/gateway/src/gateway.ts
+apps/gateway/src/gateway.test.ts
+apps/gateway/src/logger.ts
+apps/gateway/src/protocol.test.ts
+apps/gateway/src/server.ts
+apps/web/package.json
+apps/web/tsconfig.json
+apps/web/next.config.mjs
+apps/web/next-env.d.ts
+apps/web/app/globals.css
+apps/web/app/icon.svg
+apps/web/app/layout.tsx
+apps/web/app/page.tsx
+apps/web/lib/audio-pcm.ts
+apps/web/lib/audio-pcm.test.ts
+apps/web/lib/latency-metrics.ts
+apps/web/lib/latency-metrics.test.ts
+apps/web/lib/live-config.ts
+apps/web/lib/live-config.test.ts
+apps/web/lib/request-lifecycle.ts
+apps/web/lib/request-lifecycle.test.ts
+apps/web/lib/vad-engine.ts
+apps/web/lib/vad-engine.test.ts
+apps/web/public/vad-worklet.js
+packages/adapters/package.json
+packages/adapters/tsconfig.json
+packages/adapters/src/index.ts
+packages/adapters/src/index.test.ts
+packages/adapters/src/streaming-stt.ts
+packages/adapters/src/streaming-stt.test.ts
+packages/protocol/package.json
+packages/protocol/tsconfig.json
+packages/protocol/src/index.ts
+```
+
+Upstream test files are vendored together with their sources; they were not trimmed.
+
+### Upstream files deliberately not vendored
+
+`output/`, `assets/`, `.github/`, `docs/`, `scripts/`, `README.zh-CN.md`, `CHANGELOG.md`,
+`CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `TODO.md`, `.dockerignore`,
+`.env.local-ai.example`, `docker-compose.yml` and `.env.example` were left out: they are upstream
+project assets, upstream-only documentation, or files this project replaces with its own runtime
+configuration. Nothing inside `apps/` or `packages/` was pruned.
+
+### Locally modified upstream files
+
+Exactly two upstream files have been changed since they were copied. Every other vendored file is
+untouched upstream source.
+
+| File | Local changes |
+| --- | --- |
+| `package.json` | Renamed the root workspace package from `open-gpt-live` to `open-voice`. Removed the `local-ai:check` script, which invoked the non-vendored upstream `scripts/check-local-ai.mjs`. `engines.node`, `packageManager`, `typecheck`, `test` and `check` are unchanged. |
+| `.gitignore` | Kept the upstream entries and reordered them into commented groups. Added `.env.*.local`. No vendored source directory is ignored. |
+
+### Local additions absent from upstream
+
+These paths do not exist upstream and are original work licensed with this repository:
+
+- `odd/` — feature planning documents.
+- `THIRD_PARTY.md` — this file.

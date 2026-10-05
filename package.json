@@ -7,9 +7,9 @@
   },
   "packageManager": "pnpm@11.7.0",
   "scripts": {
-    "dev": "pnpm --parallel --stream --filter @open-gpt-live/gateway --filter @open-gpt-live/web dev",
-    "build": "pnpm --filter @open-gpt-live/gateway build && pnpm --filter @open-gpt-live/web build",
-    "start": "NODE_ENV=production pnpm --parallel --stream --filter @open-gpt-live/gateway --filter @open-gpt-live/web start",
+    "dev": "pnpm --parallel --stream --filter @open-voice/agent --filter @open-gpt-live/gateway --filter @open-gpt-live/web dev",
+    "build": "pnpm --filter @open-voice/agent build && pnpm --filter @open-gpt-live/gateway build && pnpm --filter @open-gpt-live/web build",
+    "start": "NODE_ENV=production pnpm --parallel --stream --filter @open-voice/agent --filter @open-gpt-live/gateway --filter @open-gpt-live/web start",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "check": "pnpm typecheck && pnpm test && pnpm build"

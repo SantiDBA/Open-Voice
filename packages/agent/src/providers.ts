@@ -1,5 +1,6 @@
 import {
   OpenAILLMProvider,
+  type TTSProvider,
   OpenAIRealtimeSTTProvider,
   OpenAITTSProvider,
   OpenAIWhisperProvider,
@@ -8,6 +9,7 @@ import {
 
 import type { AgentConfig } from "./config.js";
 import type { GatewayProviders } from "./gateway-internals.js";
+import { LocalizedVoiceTTSProvider } from "./voice.js";
 
 export type { StreamingSTTWebSocketFactory };
 
@@ -49,6 +51,39 @@ export function createGatewayProviders(
   return { llm, stt, streamingStt };
 }
 
+/** Spanish voice used when language routing is enabled and none is configured. */
+export const DEFAULT_TTS_VOICE_ES = "ef_dora";
+
+/** English voice used when language routing is enabled and none is configured. */
+export const DEFAULT_TTS_VOICE_EN = "af_heart";
+
+/**
+ * Wraps a TTS provider so each segment is spoken by a voice that speaks its
+ * language.
+ *
+ * Routing is opt-in: without `TTS_VOICE_EN` the provider is returned unwrapped
+ * and the agent behaves exactly as before, with one fixed voice.
+ */
+export function createTtsProvider(config: AgentConfig): TTSProvider {
+  const base = new OpenAITTSProvider({
+    baseUrl: config.tts.baseUrl,
+    ...(config.tts.apiKey ? { apiKey: config.tts.apiKey } : {}),
+    model: config.tts.model,
+    ...(config.tts.voice ? { voice: config.tts.voice } : {}),
+    format: config.tts.format
+  });
+
+  if (config.tts.voiceEn === undefined) {
+    return base;
+  }
+
+  return new LocalizedVoiceTTSProvider(base, {
+    spanish: config.tts.voiceEs ?? DEFAULT_TTS_VOICE_ES,
+    english: config.tts.voiceEn,
+    ...(config.tts.voice ? { fallback: config.tts.voice } : {})
+  });
+}
+
 /** Builds the gateway provider set including TTS, when TTS is enabled. */
 export function createAgentProviders(
   config: AgentConfig,
@@ -59,13 +94,5 @@ export function createAgentProviders(
     return providers;
   }
 
-  const tts = new OpenAITTSProvider({
-    baseUrl: config.tts.baseUrl,
-    ...(config.tts.apiKey ? { apiKey: config.tts.apiKey } : {}),
-    model: config.tts.model,
-    ...(config.tts.voice ? { voice: config.tts.voice } : {}),
-    format: config.tts.format
-  });
-
-  return { ...providers, tts };
+  return { ...providers, tts: createTtsProvider(config) };
 }

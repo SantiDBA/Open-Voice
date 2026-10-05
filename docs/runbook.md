@@ -340,6 +340,29 @@ routing through the host's WiFi address measured anywhere between 1.4 s and 18 s
 request. Loopback is both correct and the fastest option, and Speaches is published on
 `127.0.0.1:8000` for it.
 
+## 11. Speaking more than one language
+
+Kokoro is a single multilingual model. It never needs to be swapped per
+language; the *voice* is what is language specific. This image ships Spanish
+`ef_dora`, `em_alex`, `em_santa`, and English `af_*` and `am_*` (American) and
+`bf_*` and `bm_*` (British). Speaking English with `ef_dora` is what produces
+the bad accent, not a broken model.
+
+Setting `TTS_VOICE_EN` turns on language routing: the agent classifies each
+synthesized segment and picks `TTS_VOICE_ES` or `TTS_VOICE_EN` for it, falling
+back to `TTS_VOICE` when it cannot decide. That happens per segment, so a reply
+that switches language mid-sentence switches voice too. Leave `TTS_VOICE_EN` unset
+for a single fixed voice, which is the previous behavior.
+
+To audition a voice before committing:
+
+```bash
+curl -s -X POST http://127.0.0.1:8000/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"model":"speaches-ai/Kokoro-82M-v1.0-ONNX","voice":"af_heart","input":"Hello, how can I help?"}' \
+  -o /tmp/voice.mp3
+```
+
 ## 9. Replacing the persona
 
 Precedence in `packages/agent/src/prompt.ts` is **`AGENT_SYSTEM_PROMPT_FILE`**, then **`AGENT_SYSTEM_PROMPT`**,

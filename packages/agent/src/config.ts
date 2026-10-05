@@ -28,7 +28,12 @@ export interface TtsConfig {
   baseUrl: string;
   apiKey?: string;
   model: string;
+  /** Single fixed voice. Unchanged behavior when language routing is off. */
   voice?: string;
+  /** Voice for Spanish replies. Absent means language routing is disabled. */
+  voiceEs?: string;
+  /** Voice for English replies. Absent means language routing is disabled. */
+  voiceEn?: string;
   format: string;
 }
 
@@ -138,6 +143,10 @@ export function loadAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConf
       ...(ttsApiKey ? { apiKey: ttsApiKey } : {}),
       model: nonEmpty(env.TTS_MODEL) ?? "tts-1",
       ...(nonEmpty(env.TTS_VOICE) ? { voice: nonEmpty(env.TTS_VOICE) } : {}),
+      // Defaults live in provider construction, not here: an unset variable
+      // must stay distinguishable from an explicit choice.
+      ...(nonEmpty(env.TTS_VOICE_ES) ? { voiceEs: nonEmpty(env.TTS_VOICE_ES) } : {}),
+      ...(nonEmpty(env.TTS_VOICE_EN) ? { voiceEn: nonEmpty(env.TTS_VOICE_EN) } : {}),
       format: nonEmpty(env.TTS_FORMAT) ?? "mp3"
     },
     prompt: {

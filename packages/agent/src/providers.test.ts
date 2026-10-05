@@ -137,3 +137,61 @@ test("providers expose the upstream provider interfaces", () => {
   assert.equal(typeof providers.stt.transcribe, "function");
   assert.equal(typeof providers.tts?.synthesize, "function");
 });
+test("routes TTS voices by language only when TTS_VOICE_EN is configured", async () => {
+  const unconfigured = createAgentProviders(
+    loadAgentConfig({ ...selfHostedEnv, TTS_VOICE: "ef_dora" })
+  );
+  assert.equal(
+    (unconfigured.tts as unknown as AdapterInternals).voice,
+    "ef_dora",
+    "an unset TTS_VOICE_EN must keep today's single fixed voice"
+  );
+  assert.equal(
+    (unconfigured.tts as unknown as { inner?: unknown }).inner,
+    undefined,
+    "no wrapper is installed when language routing is off"
+  );
+
+  const configured = createAgentProviders(
+    loadAgentConfig({
+      ...selfHostedEnv,
+      TTS_VOICE: "ef_dora",
+      TTS_VOICE_EN: "af_heart"
+    })
+  );
+  const wrapper = configured.tts as unknown as {
+    inner: AdapterInternals;
+    options: { spanish: string; english: string; fallback: string };
+  };
+  assert.ok(wrapper.inner, "the real provider is wrapped, not replaced");
+  assert.deepEqual(wrapper.options, {
+    spanish: "ef_dora",
+    english: "af_heart",
+    fallback: "ef_dora"
+  });
+});
+
+test("defaults the Spanish voice when only the English voice is configured", () => {
+  const configured = createAgentProviders(
+    loadAgentConfig({ ...selfHostedEnv, TTS_VOICE_EN: "af_heart" })
+  );
+  const wrapper = configured.tts as unknown as {
+    options: { spanish: string; fallback?: string };
+  };
+  assert.equal(wrapper.options.spanish, "ef_dora");
+  assert.equal(wrapper.options.fallback, undefined);
+});
+
+test("reads TTS_VOICE_ES and TTS_VOICE_EN from the environment", () => {
+  const config = loadAgentConfig({
+    ...selfHostedEnv,
+    TTS_VOICE_ES: "em_alex",
+    TTS_VOICE_EN: "am_michael"
+  });
+  assert.equal(config.tts.voiceEs, "em_alex");
+  assert.equal(config.tts.voiceEn, "am_michael");
+
+  const unset = loadAgentConfig(selfHostedEnv);
+  assert.equal(unset.tts.voiceEs, undefined);
+  assert.equal(unset.tts.voiceEn, undefined);
+});

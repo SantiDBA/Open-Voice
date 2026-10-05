@@ -5,6 +5,7 @@ import { test } from "vitest";
 import { DEFAULT_SYSTEM_PROMPT } from "./prompt.js";
 import {
   AGENT_VERSION,
+  fetchLlmProbe,
   LLM_PROBE_TIMEOUT_MS,
   startAgent,
   type LlmProbeRequest,
@@ -128,6 +129,49 @@ test("startAgent passes the agent transport surface to the vendored gateway", as
     realtimeStt: false,
     tts: true
   });
+});
+
+test("startAgent passes the tuned latency knobs to the vendored gateway", async () => {
+  const harness = createHarness();
+  await startWithHarness(harness, {
+    ...selfHostedEnv,
+    TTS_SEGMENT_MIN_LENGTH: "12",
+    TTS_SEGMENT_MAX_LENGTH: "180",
+    LIVE_PARTIAL_INITIAL_INTERVAL_MS: "600",
+    LIVE_PARTIAL_LONG_TURN_INTERVAL_MS: "1500",
+    LIVE_PARTIAL_LONG_TURN_AFTER_MS: "20000"
+  });
+
+  assert.equal(harness.options[0].ttsSegmentMinLength, 12);
+  assert.equal(harness.options[0].ttsSegmentMaxLength, 180);
+  assert.equal(harness.options[0].livePartialInitialIntervalMs, 600);
+  assert.equal(harness.options[0].livePartialLongTurnIntervalMs, 1_500);
+  assert.equal(harness.options[0].livePartialLongTurnAfterMs, 20_000);
+});
+
+test("startAgent sends the upstream defaults when no latency variable is set", async () => {
+  const harness = createHarness();
+  await startWithHarness(harness);
+
+  assert.equal(harness.options[0].ttsSegmentMinLength, 24);
+  assert.equal(harness.options[0].ttsSegmentMaxLength, 240);
+  assert.equal(harness.options[0].livePartialInitialIntervalMs, 2_000);
+  assert.equal(harness.options[0].livePartialLongTurnIntervalMs, 5_000);
+  assert.equal(harness.options[0].livePartialLongTurnAfterMs, 30_000);
+});
+
+test("startAgent fails fast on an invalid latency knob before creating the gateway", async () => {
+  const harness = createHarness();
+
+  await assert.rejects(
+    () =>
+      startWithHarness(harness, {
+        ...selfHostedEnv,
+        TTS_SEGMENT_MIN_LENGTH: "0"
+      }),
+    /TTS_SEGMENT_MIN_LENGTH must be an integer between 1 and 2147483647/
+  );
+  assert.equal(harness.options.length, 0);
 });
 
 test("startAgent injects the four provider implementations", async () => {
@@ -319,30 +363,52 @@ test("a reachable LLM logs agent.llm_reachable and never warns", async () => {
   );
 });
 
-test("an unreachable LLM warns once with the configured URL and keeps the agent running", async () => {
+test("an HTTP error response from the model list still counts as a reachable LLM", async () => {
   const harness = createHarness();
-  const captured: Array<Record<string, unknown>> = [];
-  const restoreLogs = captureLogs(captured);
-  let agent;
-  try {
-    agent = await startWithHarness(harness, selfHostedEnv, async () => ({
+  const captured = await captureAgentLogs(async () => {
+    await startWithHarness(harness, selfHostedEnv, async () => ({
       ok: false,
       status: 401
     }));
-    await settleProbe();
-    await agent.stop("SIGTERM");
-  } finally {
-    restoreLogs();
-  }
+  });
 
-  const warnings = captured.filter(
-    (entry) => entry.event === "agent.llm_unreachable"
+  // OmniRoute answers GET /v1/models with 401 while chat completions work, so
+  // any HTTP response proves the provider is reachable.
+  assert.deepEqual(
+    captured
+      .map((entry) => entry.event)
+      .filter((event) => event !== "gateway.ready"),
+    ["agent.started", "agent.llm_reachable"]
   );
-  assert.equal(warnings.length, 1);
-  assert.equal(warnings[0].level, "warn");
-  assert.equal(warnings[0].url, "http://127.0.0.1:20128/v1/models");
-  assert.equal(warnings[0].error, "HTTP 401");
-  assert.equal(harness.closed, 1);
+  assert.equal(
+    captured.filter((entry) => entry.event === "agent.llm_unreachable").length,
+    0
+  );
+});
+
+test("the default probe reports any HTTP status as reachable", async () => {
+  for (const status of [200, 401, 404, 500]) {
+    const originalFetch = globalThis.fetch;
+    let requested: { url: string; method?: string } | undefined;
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      requested = { url, method: init?.method };
+      return { ok: status < 300, status } as Response;
+    }) as typeof globalThis.fetch;
+    try {
+      const result = await fetchLlmProbe({
+        url: "http://127.0.0.1:20128/v1/models",
+        headers: {},
+        signal: new AbortController().signal
+      });
+      assert.deepEqual(result, { ok: true, status }, `expected HTTP ${status}`);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+    assert.deepEqual(requested, {
+      url: "http://127.0.0.1:20128/v1/models",
+      method: "GET"
+    });
+  }
 });
 
 test("a network failure while probing the LLM warns once with the error description", async () => {

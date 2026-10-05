@@ -297,9 +297,13 @@ token, TTS first sentence, playback.
 | VAD hangover before a turn closes | 750 ms | **400 ms** | `NEXT_PUBLIC_VAD_HANGOVER_MS` |
 | Batch STT, 2.4 s of real speech | 9.4 s | **2.9 s** | `STT_MODEL` moved from `faster-whisper-small` to `faster-whisper-base` |
 | LLM first token, typical | 1.3 s | **0.6 – 0.9 s** | `LLM_MODEL` moved from `auto/best-chat` to `auto/chat` |
-| TTS first chunk after first token | 1.8 s | 1.8 s | see `TTS_SEGMENT_MIN_LENGTH` below |
+| TTS first chunk after first token | 4.2 s to first sound | **3.1 s** | `TTS_SEGMENT_MIN_LENGTH` lowered from 24 to 10 |
 
-Roughly 12–14 s per turn became roughly 5 s.
+Roughly 12–14 s per turn became roughly 5 s, measured through the agent's own WebSocket.
+
+The agent's own variables, all defaulting to the gateway's own defaults unless set:
+`TTS_SEGMENT_MIN_LENGTH`, `TTS_SEGMENT_MAX_LENGTH`, `LIVE_PARTIAL_INITIAL_INTERVAL_MS`,
+`LIVE_PARTIAL_LONG_TURN_INTERVAL_MS`, `LIVE_PARTIAL_LONG_TURN_AFTER_MS`.
 
 Trading further:
 

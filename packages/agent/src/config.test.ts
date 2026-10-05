@@ -32,6 +32,62 @@ test("config falls back to the documented defaults", () => {
   assert.deepEqual(config.allowedOrigins, []);
 });
 
+test("config defaults the latency knobs to the vendored gateway values", () => {
+  const config = loadAgentConfig(selfHostedEnv);
+
+  assert.deepEqual(config.latency, {
+    ttsSegmentMinLength: 24,
+    ttsSegmentMaxLength: 240,
+    livePartialInitialIntervalMs: 2_000,
+    livePartialLongTurnIntervalMs: 5_000,
+    livePartialLongTurnAfterMs: 30_000
+  });
+});
+
+test("config parses the latency knobs and trims blank values back to the defaults", () => {
+  const config = loadAgentConfig({
+    ...selfHostedEnv,
+    TTS_SEGMENT_MIN_LENGTH: " 12 ",
+    TTS_SEGMENT_MAX_LENGTH: "180",
+    LIVE_PARTIAL_INITIAL_INTERVAL_MS: "600",
+    LIVE_PARTIAL_LONG_TURN_INTERVAL_MS: "1500",
+    LIVE_PARTIAL_LONG_TURN_AFTER_MS: "   "
+  });
+
+  assert.deepEqual(config.latency, {
+    ttsSegmentMinLength: 12,
+    ttsSegmentMaxLength: 180,
+    livePartialInitialIntervalMs: 600,
+    livePartialLongTurnIntervalMs: 1_500,
+    livePartialLongTurnAfterMs: 30_000
+  });
+});
+
+test("config fails fast on an invalid latency knob", () => {
+  const oneToMax = "must be an integer between 1 and 2147483647";
+  const hundredToMax = "must be an integer between 100 and 2147483647";
+  const zeroToMax = "must be an integer between 0 and 2147483647";
+  const cases: Array<[string, string, string]> = [
+    ["TTS_SEGMENT_MIN_LENGTH", "0", oneToMax],
+    ["TTS_SEGMENT_MIN_LENGTH", "12.5", oneToMax],
+    ["TTS_SEGMENT_MAX_LENGTH", "0", oneToMax],
+    ["LIVE_PARTIAL_INITIAL_INTERVAL_MS", "99", hundredToMax],
+    ["LIVE_PARTIAL_INITIAL_INTERVAL_MS", "soon", hundredToMax],
+    ["LIVE_PARTIAL_LONG_TURN_INTERVAL_MS", "99", hundredToMax],
+    ["LIVE_PARTIAL_LONG_TURN_AFTER_MS", "-1", zeroToMax]
+  ];
+
+  for (const [name, value, expected] of cases) {
+    assert.throws(
+      () => loadAgentConfig({ ...selfHostedEnv, [name]: value }),
+      // The message is matched against the error's string form, which is
+      // prefixed with "Error: ", so the name cannot be anchored.
+      new RegExp(`${name} ${expected}`),
+      `expected ${name}=${value} to be rejected`
+    );
+  }
+});
+
 test("config parses the full self-hosted hybrid profile", () => {
   const config = loadAgentConfig({
     ...selfHostedEnv,

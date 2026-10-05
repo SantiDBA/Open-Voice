@@ -5,6 +5,9 @@ export const LOG_LEVELS = ["debug", "info", "warn", "error"] as const;
 
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+/** Upper bound used by the latency knobs, which only have a meaningful floor. */
+const INT32_MAX = 2_147_483_647;
+
 export interface LlmConfig {
   baseUrl: string;
   apiKey?: string;
@@ -35,6 +38,27 @@ export interface PromptConfig {
 }
 
 /**
+ * Latency knobs the vendored gateway already accepts as `createGatewayServer`
+ * options. Every default mirrors upstream's own hardcoded value
+ * (`ttsSegmentMinLength` 24, `ttsSegmentMaxLength` 240,
+ * `livePartialInitialIntervalMs` 2000, `livePartialLongTurnIntervalMs` 5000,
+ * `livePartialLongTurnAfterMs` 30000), so an existing deployment behaves
+ * exactly as before unless a variable is set.
+ */
+export interface LatencyConfig {
+  /** Characters required before a streamed segment is synthesized. */
+  ttsSegmentMinLength: number;
+  /** Characters that force a segment to be cut and synthesized. */
+  ttsSegmentMaxLength: number;
+  /** Re-transcription interval for a partial transcript early in a live turn. */
+  livePartialInitialIntervalMs: number;
+  /** Re-transcription interval for a partial transcript in a long live turn. */
+  livePartialLongTurnIntervalMs: number;
+  /** Live turn duration after which the long-turn interval takes over. */
+  livePartialLongTurnAfterMs: number;
+}
+
+/**
  * The agent's own configuration namespace. Upstream `OPENAI_*` variables are
  * never read: every value is resolved here and injected into the adapters.
  */
@@ -43,6 +67,7 @@ export interface AgentConfig {
   stt: SttConfig;
   tts: TtsConfig;
   prompt: PromptConfig;
+  latency: LatencyConfig;
   host: string;
   port: number;
   allowedOrigins: string[];
@@ -122,6 +147,43 @@ export function loadAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConf
       ...(nonEmpty(env.AGENT_SYSTEM_PROMPT_FILE)
         ? { systemPromptFile: nonEmpty(env.AGENT_SYSTEM_PROMPT_FILE) }
         : {})
+    },
+    latency: {
+      ttsSegmentMinLength: parseInteger(
+        env.TTS_SEGMENT_MIN_LENGTH,
+        24,
+        "TTS_SEGMENT_MIN_LENGTH",
+        1,
+        INT32_MAX
+      ),
+      ttsSegmentMaxLength: parseInteger(
+        env.TTS_SEGMENT_MAX_LENGTH,
+        240,
+        "TTS_SEGMENT_MAX_LENGTH",
+        1,
+        INT32_MAX
+      ),
+      livePartialInitialIntervalMs: parseInteger(
+        env.LIVE_PARTIAL_INITIAL_INTERVAL_MS,
+        2_000,
+        "LIVE_PARTIAL_INITIAL_INTERVAL_MS",
+        100,
+        INT32_MAX
+      ),
+      livePartialLongTurnIntervalMs: parseInteger(
+        env.LIVE_PARTIAL_LONG_TURN_INTERVAL_MS,
+        5_000,
+        "LIVE_PARTIAL_LONG_TURN_INTERVAL_MS",
+        100,
+        INT32_MAX
+      ),
+      livePartialLongTurnAfterMs: parseInteger(
+        env.LIVE_PARTIAL_LONG_TURN_AFTER_MS,
+        30_000,
+        "LIVE_PARTIAL_LONG_TURN_AFTER_MS",
+        0,
+        INT32_MAX
+      )
     },
     host: nonEmpty(env.GATEWAY_HOST) ?? "0.0.0.0",
     port: parseInteger(env.GATEWAY_PORT, 8787, "GATEWAY_PORT", 0, 65_535),

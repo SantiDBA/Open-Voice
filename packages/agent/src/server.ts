@@ -32,7 +32,12 @@ export interface LlmProbeRequest {
   signal: AbortSignal;
 }
 
-/** Outcome of the startup reachability probe, mirroring a `/models` response. */
+/**
+ * The payload a probe resolves with once the provider answered. Nothing in it
+ * changes the verdict: any resolved probe is reachable whatever status it
+ * reports, so only a rejected probe counts as a transport failure. The shape is
+ * kept because it is the public contract injected probes are written against.
+ */
 export interface LlmProbeResult {
   ok: boolean;
   status?: number;
@@ -84,6 +89,13 @@ export async function startAgent(
     systemPrompt,
     ttsFormat: config.tts.format,
     ...(config.tts.voice ? { ttsVoice: config.tts.voice } : {}),
+    // Latency knobs, mirrored from the vendored gateway's own defaults.
+    ttsSegmentMinLength: config.latency.ttsSegmentMinLength,
+    ttsSegmentMaxLength: config.latency.ttsSegmentMaxLength,
+    livePartialInitialIntervalMs: config.latency.livePartialInitialIntervalMs,
+    livePartialLongTurnIntervalMs:
+      config.latency.livePartialLongTurnIntervalMs,
+    livePartialLongTurnAfterMs: config.latency.livePartialLongTurnAfterMs,
     logger,
     healthDetails: {
       version: AGENT_VERSION,
@@ -130,6 +142,12 @@ export async function startAgent(
  * Probes the LLM once after the gateway listens so an unreachable provider is
  * announced at startup instead of surfacing on a user's first turn.
  *
+ * Any HTTP response counts as reachable whatever its status: gateways such as
+ * OmniRoute answer `GET /v1/models` with `401` while chat completions work
+ * perfectly, and warning about that would report every healthy start as an
+ * outage. Only a transport failure, a rejected request or an expired timeout
+ * means the provider is not answering.
+ *
  * The probe is fire-and-forget: an unreachable LLM is a warning, never a fatal
  * configuration error, so startup, `/healthz` and WebSocket sessions all
  * continue and the agent recovers once the provider answers again. The catch is
@@ -145,19 +163,12 @@ function announceLlmReachability(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), LLM_PROBE_TIMEOUT_MS);
     try {
-      const result = await probe({
+      await probe({
         url,
         headers: llm.apiKey ? { Authorization: `Bearer ${llm.apiKey}` } : {},
         signal: controller.signal
       });
-      if (result.ok) {
-        logger.info("agent.llm_reachable", { url });
-        return;
-      }
-      logger.warn("agent.llm_unreachable", {
-        url,
-        error: result.error ?? `HTTP ${result.status ?? "unknown"}`
-      });
+      logger.info("agent.llm_reachable", { url });
     } catch (error) {
       logger.warn("agent.llm_unreachable", {
         url,
@@ -174,13 +185,19 @@ function llmProbeUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/models`;
 }
 
-async function fetchLlmProbe({
+/**
+ * The default probe: one `GET /models` against the OpenAI-compatible model
+ * list. Exported so its status handling can be exercised without a real socket.
+ */
+export async function fetchLlmProbe({
   url,
   headers,
   signal
 }: LlmProbeRequest): Promise<LlmProbeResult> {
   const response = await fetch(url, { method: "GET", headers, signal });
-  return { ok: response.ok, status: response.status };
+  // Any status means the provider answered, so only a rejected fetch is a
+  // transport failure worth announcing.
+  return { ok: true, status: response.status };
 }
 
 function nodeWebSocketFactory(

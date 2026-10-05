@@ -12,8 +12,8 @@ which revision, and what was changed locally afterwards.
 | Vendored revision | `dd905efed6e0b04675b4c37f302815ca050adef3` |
 | Vendored tag | none — upstream publishes no tags, so `v0.2.0` could not be checked out. The revision is the only public commit of the repository and is equivalent to the `0.2.0` version declared in `package.json`. |
 | Upstream version | `0.2.0` |
-| License | MIT — see [`LICENSE`](./LICENSE), copied verbatim from upstream. |
-| Copyright | Copyright (c) the open-gpt-live authors. The upstream `LICENSE` file holds the authoritative copyright line. |
+| License | MIT — see [`LICENSE.open-gpt-live`](./LICENSE.open-gpt-live), copied verbatim from upstream. The root [`LICENSE`](./LICENSE) covers this project's own code and is a separate grant. |
+| Copyright | Copyright (c) 2026 OpenGPT Live contributors, as recorded in `LICENSE.open-gpt-live`. |
 
 ### Relationship to upstream
 
@@ -23,7 +23,16 @@ into this repository, one commit at a time, with the vendored revision recorded 
 commit message. The upstream directory layout is preserved so the upstream pnpm workspace, build and
 test commands keep working unchanged.
 
-### Vendored files
+#### Licensing
+
+The vendored copy stays under its own MIT grant and keeps its copyright notice verbatim in
+`LICENSE.open-gpt-live`, which the MIT license requires for substantial portions. The root `LICENSE`
+is a separate MIT grant covering only what this project wrote: `packages/agent/`, `odd/`, `docs/`,
+`README.md`, `THIRD_PARTY.md`, `Dockerfile.agent`, `docker-compose.yml`, `env.example.template` and
+the root configuration. The two grants do not conflict, and neither imposes a requirement on the
+other.
+
+## Vendored files
 
 The following paths are copies of upstream files. They are byte-identical to upstream unless listed
 in the next section.
@@ -34,7 +43,7 @@ package.json                           (locally modified, see below)
 pnpm-workspace.yaml
 pnpm-lock.yaml
 tsconfig.base.json
-LICENSE
+LICENSE.open-gpt-live
 README.md
 Dockerfile.gateway
 Dockerfile.web

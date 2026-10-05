@@ -132,4 +132,11 @@ The session layer, the browser app, the protocol and the provider adapters are v
 and the exact list of locally modified upstream files are in [`THIRD_PARTY.md`](THIRD_PARTY.md). Everything
 else in this repository is original work.
 
-[`LICENSE`](LICENSE)
+## License
+
+MIT, in two grants that do not conflict:
+
+- [`LICENSE`](LICENSE) covers this project's own code.
+- [`LICENSE.open-gpt-live`](LICENSE.open-gpt-live) is the vendored upstream notice, kept verbatim as
+  the MIT license requires. See [`THIRD_PARTY.md`](THIRD_PARTY.md) for exactly what is vendored and
+  what changed locally.

@@ -216,7 +216,6 @@ A four-channel industrial colour code plus a grayscale floor, all sitting on mat
 
 - **Cut Red** (`hsl(0, 80%, 50%)`): reserved for an interruption or a stopped playback, and nothing
   else. It fills the live-on and recording composer controls, marks the strike drawn through a cut
-  entry and its FAC number in the index, and colours the colour-code strip for the `cut` phase.
 - **Steel Grey** (`hsl(210, 10%, 40%)`): the `idle` phase — nothing is happening. Deliberately
   desaturated so that idleness reads as absence of signal rather than as a state that needs
   attention.

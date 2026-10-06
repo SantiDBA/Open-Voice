@@ -228,6 +228,8 @@ export default function Home() {
    * field never moves on a signal that does not exist.
    */
   const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  /** Mirrors `recording` for effects that must not re-run on state. */
+  const recordingRef = useRef(false);
   const micLevelBufRef = useRef<Float32Array | null>(null);
   const vadSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const vadWorkletNodeRef = useRef<AudioWorkletNode | null>(null);
@@ -722,6 +724,7 @@ export default function Home() {
       beginRequest(requestLifecyclesRef.current, requestId, "recording");
       setCurrentRequest(requestId);
       setRecording(true);
+    recordingRef.current = true;
       setRecordingStatus("Recording...");
 
       recorder.addEventListener("dataavailable", (event) => {
@@ -782,6 +785,7 @@ export default function Home() {
       "finalizing"
     );
     setRecording(false);
+    recordingRef.current = false;
     setRecordingStatus("Transcribing...");
     context.recorder.stop();
   }
@@ -885,6 +889,7 @@ export default function Home() {
     }
     if (updateUi) {
       setRecording(false);
+    recordingRef.current = false;
     }
   }
 
@@ -1104,6 +1109,7 @@ export default function Home() {
     beginRequest(requestLifecyclesRef.current, requestId, "recording");
     setCurrentRequest(requestId);
     setRecording(true);
+    recordingRef.current = true;
     setRecordingStatus("Listening...");
 
     if (!sendRaw(socket, {
@@ -1168,6 +1174,7 @@ export default function Home() {
     livePcmTurnRef.current = null;
     clearPreRoll();
     setRecording(false);
+    recordingRef.current = false;
     setRecordingStatus("Transcribing...");
 
     if (!turn || turn.cancelled) {
@@ -1244,6 +1251,7 @@ export default function Home() {
     if (updateUi) {
       setLiveMode(false);
       setRecording(false);
+    recordingRef.current = false;
       setRecordingStatus(null);
       setVadSnapshot(null);
     }
@@ -1542,6 +1550,7 @@ export default function Home() {
       speechDetectorRef.current?.cancelTurn(performance.now());
       clearPreRoll();
       setRecording(false);
+    recordingRef.current = false;
     }
 
     clearCurrentRequest(requestId);
@@ -1558,6 +1567,7 @@ export default function Home() {
     activeRequestIdRef.current = null;
     setActiveRequestId(null);
     setRecording(false);
+    recordingRef.current = false;
     setRecordingStatus(null);
   }
 
@@ -1742,9 +1752,12 @@ export default function Home() {
       const centerY = height / 2;
       const maxRadius = Math.min(centerX, centerY) * 0.8;
 
+      // Read through refs, never through state: this effect has no
+      // dependencies by design, so a state read here would be frozen at mount
+      // and push-to-talk would never light the trace.
       const micLive =
         (liveModeRef.current && liveListeningRef.current) ||
-        (recording && !liveMode);
+        (recordingRef.current && !liveModeRef.current);
 
       let level = 0;
       if (micLive) {
@@ -2014,6 +2027,25 @@ export default function Home() {
       </main>
 
       {/* Composer - pinned to bottom */}
+      <section className="messages" aria-live="polite">
+        {messages.length === 0 ? (
+          <p className="empty">
+            Type a message, hold to talk, or turn on Live mode.
+          </p>
+        ) : (
+          messages.map((message) => (
+            <article
+              className={`message ${message.role}${message.transient ? " transient" : ""}`}
+              key={message.id}
+            >
+              <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
+              {message.source === "audio" ? <span>transcribed speech</span> : null}
+              <p>{message.content || "..."}</p>
+            </article>
+          ))
+        )}
+      </section>
+
       <form
         className="composer"
         onSubmit={(event) => {
@@ -2082,24 +2114,7 @@ export default function Home() {
       {error ? <p className="error">{error}</p> : null}
 
       {/* Original messages area - hidden per CSS */}
-      <section className="messages" aria-live="polite">
-        {messages.length === 0 ? (
-          <p className="empty">
-            Type a message, hold to talk, or turn on Live mode.
-          </p>
-        ) : (
-          messages.map((message) => (
-            <article
-              className={`message ${message.role}${message.transient ? " transient" : ""}`}
-              key={message.id}
-            >
-              <strong>{message.role === "user" ? "You" : "Assistant"}</strong>
-              {message.source === "audio" ? <span>transcribed speech</span> : null}
-              <p>{message.content || "..."}</p>
-            </article>
-          ))
-        )}
-      </section>
+      
     </main>
   );
 }

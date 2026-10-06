@@ -36,7 +36,7 @@
 :root {
   /* Industrial color code - each with exactly one meaning */
   --color-idle: hsl(210, 10%, 40%);      /* steel grey - nothing is happening */
-  /* blue - microphone capturing. This token sits on two grounds: 5.27:1 on
+  /* blue - microphone capturing. This token sits on two grounds: 5.24:1 on
      --color-ground (#000000), which clears AA, and 4.37:1 on
      --color-background-panel, where it is used as the selection background and
      on the color strip. Check the ground you are placing it on. */
@@ -479,8 +479,16 @@ caret {
 
 /* Messages area - we'll repurpose for transcript display in sidebar? */
 .messages {
-  /* We'll hide the original messages and use our own layout */
-  display: none;
+  /* The transcript is a product requirement, not decoration: it stays on the
+     screen. It used to be hidden here with a note about replacing it with a
+     different layout, and no such layout was ever built. */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 0 1 auto;
+  max-height: 26vh;
+  padding: 0 1.5rem;
+  overflow-y: auto;
 }
 
 /* Notice and error styles */

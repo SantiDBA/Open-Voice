@@ -202,7 +202,7 @@ A four-channel industrial colour code plus a grayscale floor, all sitting on mat
 - **Signal Blue** (`hsl(210, 80%, 50%)`): the colour of the microphone capturing. It is the
   `transcribing` phase code on the colour-code strip, the connected state of the status pill, and
   the background of text selection (with `ground` as the selected text colour). It measures
-  5.27:1 on `--color-ground`, which clears AA; on the panel ground it measures 4.37:1, so check the
+  5.24:1 on `--color-ground`, which clears AA; on the panel ground it measures 4.37:1, so check the
   surface under it before using it as small text.
 
 ### Secondary
@@ -240,6 +240,13 @@ A four-channel industrial colour code plus a grayscale floor, all sitting on mat
 **The One Colour Per State Rule.** Every product state owns exactly one colour, and the same colour
 must never mean two things. A new state means a new token, not a second use of an existing one. The
 strip in the right rail is the only place the current phase's colour appears as a large fill.
+
+**What the strip never shows.** The strip renders one of exactly four computed phases: `idle`,
+`transcribing`, `thinking`, `speaking`. A cut is never a phase on the strip, and red never fills it.
+The phase is computed from live connection state, so no rule keyed on a `cut` phase could ever fire
+and one was deleted rather than left to look intentional. An interruption is carried where it
+actually belongs: as the permanent red strike through the entry in the turn index. If an
+interruption ever needs its own live indicator, it gets a new token and a new rule, not the strip.
 
 **The Red Is Not A Button Rule.** Red is reserved for a cut. A cut is a fact about the conversation,
 so it is permanent: the entry is struck through with a one-pixel red line, the FAC turns red, and

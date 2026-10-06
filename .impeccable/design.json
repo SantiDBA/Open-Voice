@@ -51,7 +51,7 @@
         "displayName": "Signal Blue",
         "canonical": "hsl(210, 80%, 50%)",
         "tonalRamp": ["oklch(15% 0.144 210)", "oklch(30% 0.144 210)", "oklch(45% 0.144 210)", "oklch(55% 0.144 210)", "oklch(65% 0.144 210)", "oklch(75% 0.144 210)", "oklch(85% 0.144 210)", "oklch(95% 0.144 210)"],
-        "note": "Microphone capturing. 5.27:1 on ground, 4.37:1 on panel — check the surface under it."
+        "note": "Microphone capturing. 5.24:1 on ground, 4.37:1 on panel — check the surface under it."
       },
       "phase-thinking": {
         "role": "secondary",

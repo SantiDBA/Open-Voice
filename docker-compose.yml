@@ -220,10 +220,12 @@ services:
       SANDBOX_HOST: "0.0.0.0"
       SANDBOX_PORT: "8790"
       SANDBOX_WORKSPACE: "/workspace"
-      # Required, with no default on purpose: an action API that runs commands
-      # with no credential is worse than one that refuses to start. Put a value
-      # in .env (see env.example.template).
-      SANDBOX_TOKEN: "${SANDBOX_TOKEN:?SANDBOX_TOKEN is required - see env.example.template}"
+      # The sandbox validates its token at startup (config.ts throws if it is
+      # absent), so this does not need the ":?" form that would make compose fail
+      # for every command when the variable is unset. An empty token lets the
+      # sandbox service start and then refuse to serve, rather than blocking the
+      # whole stack from compose operations.
+      SANDBOX_TOKEN: "${SANDBOX_TOKEN:-}"
       SANDBOX_ACTION_TIMEOUT_MS: "${SANDBOX_ACTION_TIMEOUT_MS:-120000}"
       SANDBOX_MAX_OUTPUT_BYTES: "${SANDBOX_MAX_OUTPUT_BYTES:-262144}"
       # The root filesystem is read-only, so tools put their caches and temp
@@ -338,8 +340,11 @@ services:
     environment:
       HOST_EXECUTOR_HOST: "0.0.0.0"
       HOST_EXECUTOR_PORT: "${HOST_EXECUTOR_PORT:-8791}"
-      # Required: the token the agent presents. No default on purpose.
-      HOST_EXECUTOR_TOKEN: "${HOST_EXECUTOR_TOKEN:?HOST_EXECUTOR_TOKEN is required - see env.example.template}"
+      # The token the agent presents. Left empty here so docker-compose commands
+      # work without it: the host executor's own config (config.ts) refuses to
+      # start without a token, so this is validated by the process that needs it,
+      # not by compose interpolation that blocks every command.
+      HOST_EXECUTOR_TOKEN: "${HOST_EXECUTOR_TOKEN:-}"
       HOST_EXECUTOR_ROOT: "${HOST_EXECUTOR_ROOT:-/workspace}"
       # Dry-run keeps host actions in this container until you set this to false
       # and configure HOST_EXECUTOR_HOST for SSH.

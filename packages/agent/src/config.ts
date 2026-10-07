@@ -43,6 +43,57 @@ export interface PromptConfig {
 }
 
 /**
+ * Whether the agent may act, and where it acts.
+ *
+ * Off by default, and that default is load-bearing: with `TOOLS_ENABLED` unset
+ * the agent is exactly the speaking assistant it was before, and every existing
+ * behaviour and test is untouched. The only way to get the tool loop is to ask
+ * for it and to supply the credential the sandbox requires.
+ */
+export interface ToolingConfig {
+  /** Whether the agent may run tools at all. */
+  enabled: boolean;
+  /** Base URL of the sandbox action API. */
+  sandboxBaseUrl: string;
+  /** Bearer token for the sandbox action API. Required when enabled. */
+  sandboxToken?: string;
+  /** Most model/tool round-trips allowed in a single turn. */
+  maxIterations: number;
+  /** Ceiling for one action, passed through to the sandbox. */
+  actionTimeoutMs: number;
+  /** Ceiling for one action's output, passed through to the sandbox. */
+  maxOutputBytes: number;
+  /** Interface the browser channel listens on. */
+  channelHost: string;
+  /** Port the browser channel listens on. */
+  channelPort: number;
+  /**
+   * What needs a human decision before it runs.
+   *
+   * `sandbox` — the default — runs anything confined to the sandbox on its own
+   * and only asks for actions that leave it. `all` asks before every tool call,
+   * which is the same choice the vendored world's neighbours offer as
+   * "regular permissions" rather than sandbox auto-allow.
+   */
+  approval: "sandbox" | "all";
+  /**
+   * The host executor, when the operator has started one. Both values are
+   * required together: a URL without a credential is a misconfiguration, and an
+   * absent URL means the agent offers no way to reach the machine at all.
+   */
+  hostExecutorBaseUrl?: string;
+  hostExecutorToken?: string;
+  /**
+   * Run host-executor actions in the container namespace instead of over SSH.
+   * Defaults to true: a dry run is safe to enable without credentials, and lets
+   * the operator test the allowlist and the approval flow before granting real
+   * host access. Set to false only when the host executor is configured with a
+   * real SSH target.
+   */
+  hostExecutorDryRun: boolean;
+}
+
+/**
  * Latency knobs the vendored gateway already accepts as `createGatewayServer`
  * options. Every default mirrors upstream's own hardcoded value
  * (`ttsSegmentMinLength` 24, `ttsSegmentMaxLength` 240,
@@ -72,6 +123,7 @@ export interface AgentConfig {
   stt: SttConfig;
   tts: TtsConfig;
   prompt: PromptConfig;
+  tools: ToolingConfig;
   latency: LatencyConfig;
   host: string;
   port: number;
@@ -120,6 +172,36 @@ export function loadAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConf
     );
   }
 
+  // Acting is opt-in, and asking for it without the credential the sandbox
+  // requires is a configuration error rather than a feature that quietly does
+  // nothing.
+  const toolsEnabled = parseBoolean(env.TOOLS_ENABLED, false, "TOOLS_ENABLED");
+  const sandboxToken = nonEmpty(env.SANDBOX_TOKEN);
+  if (toolsEnabled && !sandboxToken) {
+    throw new Error(
+      "SANDBOX_TOKEN is required when TOOLS_ENABLED=true: the sandbox action API refuses unauthenticated callers"
+    );
+  }
+
+  // Escalation is all-or-nothing: an address with no credential would be an
+  // open door, so it is a configuration error rather than a warning.
+  const hostExecutorBaseUrl = nonEmpty(env.HOST_EXECUTOR_BASE_URL);
+  const hostExecutorToken = nonEmpty(env.HOST_EXECUTOR_TOKEN);
+  if (hostExecutorBaseUrl && !hostExecutorToken) {
+    throw new Error(
+      "HOST_EXECUTOR_TOKEN is required when HOST_EXECUTOR_BASE_URL is set: the host executor refuses unauthenticated callers"
+    );
+  }
+
+  // Dry-run keeps host actions inside the container until the operator is ready
+  // to grant real SSH access. It defaults to ON so that simply pointing the
+  // agent at a host executor does not silently hand over the machine.
+  const hostExecutorDryRun = parseBoolean(
+    env.HOST_EXECUTOR_DRY_RUN,
+    true,
+    "HOST_EXECUTOR_DRY_RUN"
+  );
+
   return {
     llm: {
       baseUrl: llmBaseUrl,
@@ -156,6 +238,35 @@ export function loadAgentConfig(env: NodeJS.ProcessEnv = process.env): AgentConf
       ...(nonEmpty(env.AGENT_SYSTEM_PROMPT_FILE)
         ? { systemPromptFile: nonEmpty(env.AGENT_SYSTEM_PROMPT_FILE) }
         : {})
+    },
+    tools: {
+      enabled: toolsEnabled,
+      sandboxBaseUrl:
+        nonEmpty(env.SANDBOX_BASE_URL) ?? "http://127.0.0.1:8790",
+      ...(sandboxToken ? { sandboxToken } : {}),
+      maxIterations: parseInteger(env.TOOLS_MAX_ITERATIONS, 12, "TOOLS_MAX_ITERATIONS", 1, 100),
+      actionTimeoutMs: parseInteger(
+        env.TOOLS_ACTION_TIMEOUT_MS,
+        120_000,
+        "TOOLS_ACTION_TIMEOUT_MS",
+        1_000,
+        INT32_MAX
+      ),
+      maxOutputBytes: parseInteger(
+        env.TOOLS_MAX_OUTPUT_BYTES,
+        262_144,
+        "TOOLS_MAX_OUTPUT_BYTES",
+        1_024,
+        INT32_MAX
+      ),
+      channelHost: nonEmpty(env.TOOLS_HOST) ?? "127.0.0.1",
+      channelPort: parseInteger(env.TOOLS_PORT, 8788, "TOOLS_PORT", 1, 65_535),
+      approval:
+        optionalEnum(env.TOOLS_APPROVAL, ["sandbox", "all"] as const, "TOOLS_APPROVAL") ??
+        "sandbox",
+      ...(hostExecutorBaseUrl ? { hostExecutorBaseUrl } : {}),
+      ...(hostExecutorToken ? { hostExecutorToken } : {}),
+      hostExecutorDryRun
     },
     latency: {
       ttsSegmentMinLength: parseInteger(

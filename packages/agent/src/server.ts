@@ -19,6 +19,11 @@ import {
 } from "./gateway-internals.js";
 import { resolveSystemPrompt } from "./prompt.js";
 import { createAgentProviders } from "./providers.js";
+import {
+  createToolChannel,
+  type ToolChannel,
+  type ToolChannelOptions
+} from "./tool-channel.js";
 
 export const AGENT_VERSION = "0.1.0";
 
@@ -51,6 +56,7 @@ export interface AgentRuntimeDependencies {
   loadEnvironment?: () => void;
   createServer?: typeof createGatewayServer;
   createProviders?: typeof createAgentProviders;
+  createChannel?: (options: ToolChannelOptions) => Promise<ToolChannel>;
   webSocketFactory?: StreamingSTTWebSocketFactory;
   probeLlm?: LlmProbe;
   registerSignalHandlers?: boolean;
@@ -61,6 +67,8 @@ export interface RunningAgent {
   logger: GatewayLogger;
   config: AgentConfig;
   systemPrompt: string;
+  /** The browser channel for tool activity, when tools are enabled. */
+  channel: ToolChannel | null;
   stop(signal: string): Promise<void>;
 }
 
@@ -76,9 +84,24 @@ export async function startAgent(
   const config = loadAgentConfig(env);
   const systemPrompt = resolveSystemPrompt(config.prompt);
   const logger = createJsonLogger(config.logLevel);
+
+  // The channel is where tool activity and approval requests go. It only exists
+  // when tools do: with them off there is nothing to report and no reason to
+  // open a listening socket.
+  const channel = config.tools.enabled
+    ? await (dependencies.createChannel ?? createToolChannel)({
+        host: config.tools.channelHost,
+        port: config.tools.channelPort,
+        allowedOrigins: config.allowedOrigins,
+        logger
+      })
+    : null;
+
   const providers = (dependencies.createProviders ?? createAgentProviders)(
     config,
-    dependencies.webSocketFactory ?? nodeWebSocketFactory
+    dependencies.webSocketFactory ?? nodeWebSocketFactory,
+    logger,
+    channel ?? undefined
   );
 
   const gateway = await (dependencies.createServer ?? createGatewayServer)({
@@ -112,7 +135,10 @@ export async function startAgent(
     llmBaseUrl: config.llm.baseUrl,
     sttModel: config.stt.model,
     realtimeStt: config.stt.realtimeEnabled,
-    tts: config.tts.enabled
+    tts: config.tts.enabled,
+    tools: config.tools.enabled,
+    toolsApproval: config.tools.enabled ? config.tools.approval : undefined,
+    toolsChannel: channel ? `${config.tools.channelHost}:${channel.port}` : null
   });
 
   announceLlmReachability(
@@ -120,12 +146,14 @@ export async function startAgent(
     logger,
     dependencies.probeLlm ?? fetchLlmProbe
   );
+  announceSandboxReachability(config.tools, logger);
 
   let shuttingDown = false;
   const stop = async (signal: string): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
     logger.info("agent.stopping", { signal });
+    await channel?.close();
     await gateway.close();
     logger.info("agent.stopped", { signal });
   };
@@ -135,7 +163,7 @@ export async function startAgent(
     process.once("SIGTERM", () => void stop("SIGTERM"));
   }
 
-  return { gateway, logger, config, systemPrompt, stop };
+  return { gateway, logger, config, systemPrompt, channel, stop };
 }
 
 /**
@@ -183,6 +211,48 @@ function announceLlmReachability(
 /** Matches the adapters: the provider URL is stripped of trailing slashes. */
 function llmProbeUrl(baseUrl: string): string {
   return `${baseUrl.replace(/\/+$/, "")}/models`;
+}
+
+/**
+ * Probes the sandbox once after startup, only when tools are enabled.
+ *
+ * Like the LLM probe this is a warning, never a fatal error: the agent still
+ * speaks, and a tool call that cannot reach the sandbox comes back as a plain
+ * failure the model can report. But it must be visible at startup rather than
+ * discovered mid-conversation, which is the failure mode the rest of this file
+ * exists to prevent.
+ */
+function announceSandboxReachability(
+  tools: AgentConfig["tools"],
+  logger: GatewayLogger
+): void {
+  if (!tools.enabled) {
+    return;
+  }
+
+  void (async () => {
+    const url = `${tools.sandboxBaseUrl.replace(/\/+$/, "")}/healthz`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), LLM_PROBE_TIMEOUT_MS);
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (response.ok) {
+        logger.info("agent.sandbox_reachable", { url });
+      } else {
+        logger.warn("agent.sandbox_unreachable", {
+          url,
+          status: response.status
+        });
+      }
+    } catch (error) {
+      logger.warn("agent.sandbox_unreachable", {
+        url,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  })().catch(() => undefined);
 }
 
 /**

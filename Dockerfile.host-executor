@@ -1,0 +1,48 @@
+FROM node:22-bookworm-slim AS build
+
+RUN corepack enable
+WORKDIR /app
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/host-executor/package.json apps/host-executor/package.json
+COPY apps/egress-proxy/package.json apps/egress-proxy/package.json
+COPY packages/exec/package.json packages/exec/package.json
+RUN pnpm install --frozen-lockfile
+
+COPY apps/host-executor apps/host-executor
+COPY apps/egress-proxy apps/egress-proxy
+COPY packages/exec packages/exec
+RUN pnpm --filter @open-voice/host-executor build
+
+# The execution environment for host-escalation actions. It runs commands on
+# the operator's machine, so it is the one container that does NOT join the
+# internal network: it needs an egress route to resolve URLs for the browse
+# tool, and in non-dry-run mode it reaches the host over SSH.
+FROM node:22-bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        jq \
+        openssh-client \
+        python3 \
+        ripgrep \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    HOST_EXECUTOR_HOST=0.0.0.0 \
+    HOST_EXECUTOR_PORT=8791 \
+    HOST_EXECUTOR_DRY_RUN=true
+
+COPY --from=build /app/apps/host-executor/dist ./dist
+
+RUN mkdir -p /workspace && chown node:node /workspace
+USER node
+
+EXPOSE 8791
+CMD ["node", "dist/main.cjs"]

@@ -1,0 +1,31 @@
+{
+  "name": "@open-voice/browserbot",
+  "version": "0.1.0",
+  "description": "Stateful browser automation service (Playwright + headless Chromium) for the Open Voice agent's host_interact tool.",
+  "main": "./src/index.ts",
+  "type": "module",
+  "bin": {
+    "open-voice-browserbot": "./dist/main.cjs"
+  },
+  "scripts": {
+    "dev": "tsx watch src/main.ts",
+    "build": "esbuild src/main.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/main.cjs --sourcemap",
+    "start": "node dist/main.cjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@open-voice/egress-proxy": "workspace:*",
+    "playwright": "^1.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

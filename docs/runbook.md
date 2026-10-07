@@ -263,6 +263,97 @@ reports, or add `ports: ["8000:8000"]` to the `speaches` service while you are t
 Two other ways to point the process at a different `.env`: `OPEN_GPT_LIVE_ENV_FILE=/path/to/file.env`, or the
 `INIT_CWD` mechanism in the vendored `loadProjectEnvironment`.
 
+## 7b. Agentic tools and the host executor
+
+The agent can act on this machine through tools. This is **opt-in and gated**:
+tools are off by default, and every action that leaves the sandbox needs your
+approval in the browser UI.
+
+### Enabling tools
+
+In `.env`:
+
+```dotenv
+TOOLS_ENABLED=true
+SANDBOX_TOKEN=<a-long-random-value>
+```
+
+`SANDBOX_TOKEN` must match `SANDBOX_TOKEN` in the sandbox service block — the
+agent and sandbox share one credential. With both set, the agent opens a
+WebSocket on port 8788 for tool activity. Open `http://localhost:3000` and you
+will see a small tool-activity panel below the transcript.
+
+### Enabling host escalation (optional)
+
+The sandbox is a container; it cannot touch your machine. If a task genuinely
+needs to run on the host, you can start the host executor yourself:
+
+```bash
+HOST_EXECUTOR_TOKEN=<same-as-agent> \
+HOST_EXECUTOR_ALLOWED_COMMANDS="git status,git log *,ls -la *" \
+HOST_EXECUTOR_DRY_RUN=true \
+pnpm --filter @open-voice/host-executor start
+```
+
+Then tell the agent about it in `.env`:
+
+```dotenv
+HOST_EXECUTOR_BASE_URL=http://127.0.0.1:8791
+HOST_EXECUTOR_TOKEN=<the-same-token>
+```
+
+The agent only needs `HOST_EXECUTOR_BASE_URL` and `HOST_EXECUTOR_TOKEN` to offer
+the host tools (`host_exec`, `host_file_read`, `host_file_write`,
+`host_browse`, `host_search`). Without both, it never tells the model the option
+exists.
+
+### Dry-run mode (the default)
+
+With `HOST_EXECUTOR_DRY_RUN=true` (the default), host commands run inside the
+host-executor's own container — not on your machine. Use this to test the
+allowlist, the approval flow, and the audit log before you grant real access.
+
+> **Note:** dry-run only confines the *command* execution. The `host_browse`
+> and `host_search` tools still make real outbound network requests (to
+> allowlisted domains) even in dry-run mode. Their egress is bounded by
+> `HOST_EXECUTOR_EGRESS_ALLOWLIST`.
+
+To escalate to the real host, stop the executor, set
+`HOST_EXECUTOR_DRY_RUN=false`, and start it again. In that mode the executor
+still needs `HOST_EXECUTOR_TOKEN` to authenticate the agent, and
+`HOST_EXECUTOR_ALLOWED_COMMANDS` to permit specific commands.
+
+### The approval gate
+
+Every host tool call — and every sandbox tool call when `TOOLS_APPROVAL=all` —
+pauses and shows a gate panel in the browser. Click **Approve** to run it, or
+**Deny** to refuse. If nobody answers within 60 seconds, the answer is **deny**.
+Closing the page denies everything pending.
+
+### Auditing what the agent did
+
+Every tool call is logged as a structured JSON line:
+
+```bash
+docker compose logs agent | grep tool.audit
+```
+
+Each line records the tool name, the action, the arguments the model asked for,
+the outcome (`ok`, `error`, `timeout`, `cancelled`, `refused`, `denied`), the
+exit code, and the duration. Host actions also carry `"dryRun": true` when
+dry-run mode was on.
+
+### Common failures
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Agent log shows `No host executor is configured on this machine` | `HOST_EXECUTOR_BASE_URL` or `HOST_EXECUTOR_TOKEN` is unset | Set both in `.env`, or start the host executor with `pnpm --filter @open-voice/host-executor start` |
+| `host_exec` is refused with `not_allowed` | The command does not match `HOST_EXECUTOR_ALLOWED_COMMANDS` | Add the command to the allowlist, e.g. `git status` |
+| `host_exec` is refused with `compound_command` | The command contains pipes, chains, redirects, or substitutions | Split it into separate `host_exec` calls; each must be a single simple command |
+| `host_browse` is refused with `SSRF protection` | The URL resolves to a private or loopback address | Use a public https domain; the check is on the resolved IP, not the hostname |
+| `host_search` is refused with "egress allowlist" | `HOST_EXECUTOR_EGRESS_ALLOWLIST` is empty or does not include a DuckDuckGo domain | Add `*.duckduckgo.com` to enable search |
+| The tool-activity panel never appears | Tools are not enabled | Set `TOOLS_ENABLED=true` and `SANDBOX_TOKEN` in `.env` |
+
 ## 8. Common failures
 
 | Symptom | Actual cause | Fix |

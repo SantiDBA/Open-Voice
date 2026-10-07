@@ -176,7 +176,80 @@ From the host, with `pnpm dev` instead of compose, use the loopback URL `http://
 - **The web bundle is built at image build time.** `NEXT_PUBLIC_*` variables are inlined into JavaScript by
   Next.js, so changing one requires `docker compose up -d --build web`, not a restart. The compose file
   forwards each of them as a build arg so they can come from `.env`, but they are read when the image is built.
-- **The upstream request body is fixed at `{ model, messages, stream }`.** No temperature, no `max_tokens`, no
-  tools. Anything the model decides to do beyond answering is not expressible yet.
 - **The smoke audio in the runbook is synthetic tone, not speech.** It proves the transcription path returns a
   response; it does not prove recognition accuracy.
+
+## Agentic tools and the tool channel
+
+The agent can act on this machine through tools, behind an approval gate. The
+tool loop lives *inside* the `LLMProvider.streamText` call (in
+`packages/agent/src/tools/llm.ts`): it calls the model with function-calling,
+runs whatever the model asked for, feeds the result back as data, and calls
+again — yielding only the text that should be spoken. The gateway sees a normal
+`streamText` call and its interruption/TTS pipeline are unchanged.
+
+### The trust boundary
+
+Three tiers, each more privileged than the last, and only one path between them:
+
+- **Sandbox** (`apps/sandbox`). A container on an internal-only network with no
+  egress route. Commands run with `cap_drop: ALL`, read-only root, and a 1 GB
+  memory ceiling. The agent talks to it through `SANDBOX_BASE_URL` on the host
+  loopback via the `sandbox-gateway` forwarder. Tools: `read_file`,
+  `write_file`, `edit_file`, `list_dir`, `run_command`. These run without asking
+  when `TOOLS_APPROVAL=sandbox` (the default).
+
+- **Host executor** (`apps/host-executor`). A separate process you start
+  yourself — nothing in this stack starts it for you. It runs commands on the
+  operator's machine. Commands need an allowlist match and pass through the
+  approval gate. In dry-run mode (the default) they run inside the
+  host-executor's own container; in SSH mode they run on the real host.
+
+- **Browser channel** (`packages/agent/src/tool-channel.ts`). A second
+  WebSocket server on port 8788. The browser connects to watch activity and to
+  answer approval requests. Origin-checked, fail-closed: no allowed origins
+  means no connections, and a timeout, disconnect, or missing client all deny.
+
+### The tools
+
+| Tool | Runs on | Enforcement | Notes |
+| --- | --- | --- | --- |
+| `read_file` | sandbox | auto | confined to `/workspace` |
+| `write_file` | sandbox | auto | confined to `/workspace` |
+| `edit_file` | sandbox | auto | confined to `/workspace` |
+| `list_dir` | sandbox | auto | confined to `/workspace` |
+| `run_command` | sandbox | auto | no network access; egress via proxy only |
+| `host_exec` | host | gate | allowlist enforced; no pipes, chains, redirects |
+| `host_file_read` | host | gate | path confined to `HOST_EXECUTOR_ROOT` |
+| `host_file_write` | host | gate | path confined to `HOST_EXECUTOR_ROOT` |
+| `host_browse` | host | gate | SSRF-checked; only allowlisted domains |
+| `host_search` | host | gate | DuckDuckGo HTML (no API key); egress allowlist required |
+
+The host tools only exist when `HOST_EXECUTOR_BASE_URL` and
+`HOST_EXECUTOR_TOKEN` are both set. Without them, the model is never told the
+option exists.
+
+### How escalation is denied by default
+
+1. `TOOLS_ENABLED` is off until explicitly set — with it unset, the agent is
+   only the speaking assistant it was before this feature existed.
+2. `HOST_EXECUTOR_BASE_URL` is empty until explicitly set — with no executor,
+   no host tool is offered to the model.
+3. `HOST_EXECUTOR_DRY_RUN` defaults to `true` — even with an executor,
+   commands run in the container namespace until the operator sets it to false.
+4. `HOST_EXECUTOR_ALLOWED_COMMANDS` is empty until set — with an empty
+   allowlist, every command is refused.
+5. `HOST_EXECUTOR_EGRESS_ALLOWLIST` is empty until set — `host_browse` refuses
+   all domains until one is added.
+6. Every host tool call goes through the approval gate — there is no
+   auto-approve for host operations, ever.
+
+### Audit trail
+
+Every tool call — sandbox, host, approved or refused — is logged as a
+structured JSON line (`tool.audit`) with the tool name, action, arguments,
+outcome, exit code, and duration. Read it with:
+
+```bash
+docker compose logs agent | grep tool.audit
+```

@@ -1,0 +1,56 @@
+FROM node:22-bookworm-slim AS build
+
+RUN corepack enable
+WORKDIR /app
+
+# The frozen lockfile resolves every workspace importer, so each manifest it
+# references has to exist before `pnpm install` — the same shape as
+# Dockerfile.agent.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/egress-proxy/package.json apps/egress-proxy/package.json
+COPY apps/gateway/package.json apps/gateway/package.json
+COPY apps/sandbox/package.json apps/sandbox/package.json
+COPY packages/agent/package.json packages/agent/package.json
+COPY packages/adapters/package.json packages/adapters/package.json
+COPY packages/exec/package.json packages/exec/package.json
+COPY packages/protocol/package.json packages/protocol/package.json
+RUN pnpm install --frozen-lockfile
+
+COPY apps/sandbox apps/sandbox
+COPY packages/exec packages/exec
+RUN pnpm --filter @open-voice/sandbox build
+
+# The execution environment. This image is the only place agent-authored
+# commands run, so it carries the tools a coding turn needs and nothing else:
+# no credentials, no host mounts, no package managers beyond what is listed.
+FROM node:22-bookworm-slim AS runtime
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        jq \
+        python3 \
+        ripgrep \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# 0.0.0.0 inside the container namespace; the loopback restriction is carried by
+# the compose port mapping (`127.0.0.1:<port>:<port>`), exactly as Speaches does.
+ENV NODE_ENV=production \
+    SANDBOX_HOST=0.0.0.0 \
+    SANDBOX_PORT=8790 \
+    SANDBOX_WORKSPACE=/workspace
+
+COPY --from=build /app/apps/sandbox/dist ./dist
+
+# The workspace is owned by the unprivileged runtime user, so a bind-mounted
+# host directory (or an anonymous volume) works without ever running as root.
+RUN mkdir -p /workspace && chown node:node /workspace
+USER node
+
+EXPOSE 8790
+CMD ["node", "dist/main.cjs"]

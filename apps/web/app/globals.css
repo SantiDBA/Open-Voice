@@ -64,11 +64,11 @@
   --font-mono: 'Azeret Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Sizes */
-  --size-display: 6rem; /* max 6rem */
-  --size-body: 1.125rem; /* 18px */
-  --size-label: 0.875rem; /* 14px */
-  --size-small: 0.8125rem; /* 13px - the catalog's smallest step */
-  --size-caption: 0.75rem; /* 12px */
+  --size-display: 2.25rem; /* 36px - the shell's headline */
+  --size-body: 0.9375rem; /* 15px */
+  --size-label: 0.8125rem; /* 13px */
+  --size-small: 0.75rem; /* 12px - the catalog's smallest step */
+  --size-caption: 0.6875rem; /* 11px */
 
   /* Weight */
   --weight-regular: 400;
@@ -104,8 +104,17 @@ body {
   background-color: var(--color-ground);
   color: var(--color-text-primary);
   font-family: var(--font-display);
-  font-size: var(--size-body);
   line-height: var(--leading-normal);
+}
+
+/* The size lives on `body`, never on `html`. `--size-body` is a rem value, so
+   setting it on the root element would redefine the rem base: the root would
+   become 18px, every other rem on the page would resolve against 18px instead
+   of 16px, and the whole type scale would grow by 12.5% (6rem display becoming
+   108px instead of the documented 96px). Keeping the root at the browser's 16px
+   restores the exact px values DESIGN.md documents. */
+body {
+  font-size: var(--size-body);
 }
 
 /* Ensure text selection and caret match palette */
@@ -119,8 +128,8 @@ body {
   color: var(--color-ground);
 }
 
-caret {
-  color: var(--color-text-primary);
+.composer input {
+  caret-color: var(--color-text-primary);
 }
 
 /* Scrollbar styling */
@@ -178,7 +187,15 @@ caret {
 .shell {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  /* The shell is exactly the viewport tall at desktop widths, so the first
+     view always fits: the plot is the only flexible element and the header,
+     readout rail and composer keep their natural heights. `100dvh` tracks a
+     mobile browser's collapsing bars; the fixed fallback keeps older engines on
+     `100vh`. Below 1024px the stacking query relaxes this so the shell grows
+     and scrolls instead of clipping the readout. */
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   background-color: var(--color-ground);
   color: var(--color-text-primary);
 }
@@ -188,8 +205,8 @@ caret {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1.5rem;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -202,18 +219,18 @@ caret {
 }
 
 .header p {
-  margin: 0.5rem 0 0;
-  font-size: var(--size-label);
+  margin: 0.25rem 0 0;
+  font-size: var(--size-caption);
   color: var(--color-text-secondary);
 }
 
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  font-size: var(--size-label);
+  gap: 0.75rem;
+  font-size: var(--size-caption);
   color: var(--color-text-secondary);
-  padding: 1rem;
+  padding: 0.375rem 0.75rem;
   border-top: 1px solid var(--color-border);
   border-bottom: 1px solid var(--color-border);
   background-color: var(--color-background-panel);
@@ -223,9 +240,9 @@ caret {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 96px;
-  padding: 0.5rem 0.75rem;
-  font-size: var(--size-label);
+  min-width: 64px;
+  padding: 0.25rem 0.5rem;
+  font-size: var(--size-caption);
   font-weight: var(--weight-medium);
   border: 1px solid var(--color-border);
   border-radius: 0;
@@ -252,70 +269,69 @@ caret {
 /* Main layout */
 .main {
   display: flex;
+  /* The work area takes the space left over by the header, meta line, transcript
+     and composer. `min-height: 0` lets it shrink below its content's natural
+     height instead of forcing the shell past the viewport. */
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 /* Left column - navigation (list of turn numbers) */
 .nav {
   width: 20%;
-  min-width: 180px;
-  max-width: 220px;
+  min-width: 160px;
+  max-width: 200px;
   border-right: 1px solid var(--color-border);
-  padding: 1.5rem;
+  padding: 0.75rem 0.5rem;
   overflow-y: auto;
   background-color: var(--color-background-panel);
 }
 
 .nav h2 {
-  font-size: var(--size-label);
+  font-size: var(--size-caption);
   font-weight: var(--weight-medium);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.5rem 0;
   color: var(--color-text-secondary);
 }
 
-.nav ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.nav li {
-  margin: 0.5rem 0;
-}
-
-.nav button {
-  background: none;
-  border: none;
-  color: inherit;
-  font: inherit;
-  cursor: pointer;
-  text-align: left;
-  padding: 0.25rem 0.5rem;
-  border-radius: 0;
-  transition: background-color 0.2s ease;
-}
-
-.nav button:hover,
-.nav button:focus-visible {
+/* The JARVIS rail - the agent's presence and its measurements. It rides beside
+   the conversation rather than above it, so the dialogue keeps the center. */
+.jarvis {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: 320px;
+  min-height: 0;
+  overflow: hidden;
+  border-left: 1px solid var(--color-border);
   background-color: var(--color-background-panel);
-  /* slightly lighter */
-  background-color: hsl(0, 0%, 15%);
 }
 
-.nav button[aria-selected="true"] {
-  color: var(--color-text-primary);
-  font-weight: var(--weight-semibold);
-}
-
-/* Center work area - plot */
+/* The field: a square-ish panel at the top of the rail. It keeps the world's
+   black ground so the presence owns its own surface, and a fixed height so it
+   never squeezes the conversation beside it. */
 .plot-container {
-  flex: 1;
   position: relative;
+  flex: 0 0 auto;
+  width: 100%;
+  height: clamp(196px, 30vh, 288px);
   overflow: hidden;
   background-color: var(--color-ground);
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* The readout and the numbers scroll under the fixed field, so a short window
+   never clips the last panel out of reach. */
+.jarvis-side {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.75rem;
 }
 
 /* The plot itself - we'll create a canvas */
@@ -325,69 +341,58 @@ caret {
   height: 100%;
 }
 
-/* Right rail - current entry readout and instrumentation */
-.sidebar {
-  width: 260px;
-  border-left: 1px solid var(--color-border);
-  padding: 1.5rem;
-  overflow-y: auto;
-  background-color: var(--color-background-panel);
-  display: flex;
-  flex-direction: column;
-}
-
 /* Current entry readout */
 .entry-readout {
   flex-shrink: 0;
-  margin-bottom: 2rem;
+  margin-bottom: 1rem;
 }
 
 .entry-number {
   font-family: var(--font-display);
-  font-size: 5rem; /* large number */
+  font-size: 2.5rem; /* large number */
   font-weight: var(--weight-semibold);
   line-height: 1;
   letter-spacing: var(--tracking-tight);
-  margin: 0 0 0.5rem 0;
+  margin: 0 0 0.25rem 0;
 }
 
 .entry-color-strip {
-  height: 4px;
-  margin: 1rem 0;
+  height: 3px;
+  margin: 0.5rem 0;
   border-radius: 0;
 }
 
 .entry-language {
   font-family: var(--font-display);
-  font-size: var(--size-label);
+  font-size: var(--size-caption);
   font-weight: var(--weight-medium);
   text-transform: uppercase;
   letter-spacing: var(--tracking-wide);
-  margin: 0.5rem 0;
+  margin: 0.25rem 0;
 }
 
 .entry-timings {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem 1rem;
+  gap: 0.25rem 0.75rem;
   font-family: var(--font-mono);
   font-size: var(--size-caption);
 }
 
-/* Instrumentation panel - quiet line inside right rail */
+/* Instrumentation panel - quiet line inside the JARVIS rail */
 .instrumentation {
   flex-shrink: 0;
-  margin-top: auto; /* push to bottom of sidebar, above composer? */
+  margin-top: auto; /* pin the numbers to the bottom of the rail */
   border-top: 1px solid var(--color-border);
-  padding-top: 1rem;
+  padding-top: 0.5rem;
 }
 
 /* Composer - pinned to bottom */
 .composer {
   display: flex;
   flex-wrap: wrap;
-  gap: 1rem;
-  padding: 1.5rem;
+  gap: 0.75rem;
+  padding: 0.625rem 0.75rem;
   border-top: 1px solid var(--color-border);
   background-color: var(--color-background-panel);
 }
@@ -396,7 +401,7 @@ caret {
 .composer input {
   flex: 1 1 200px;
   min-width: 120px;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   font: inherit;
   font-size: var(--size-body);
   border: 1px solid var(--color-border);
@@ -411,9 +416,9 @@ caret {
 
 .composer button {
   flex: 0 0 auto;
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 0.875rem;
   font-family: var(--font-mono);
-  font-size: var(--size-label);
+  font-size: var(--size-caption);
   font-weight: var(--weight-medium);
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -423,12 +428,21 @@ caret {
   border-radius: 0;
   cursor: pointer;
   transition: border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
-    color 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .composer button:hover:not(:disabled) {
   border-color: var(--color-ink);
   color: var(--color-ink);
+}
+
+/* Keyboard focus lands in the palette rather than on the browser's near-black
+   default ring, which is invisible on this ground. */
+.composer input:focus-visible,
+.composer button:focus-visible {
+  outline: 1px solid var(--color-thinking);
+  outline-offset: 2px;
 }
 
 .composer button:disabled {
@@ -477,25 +491,317 @@ caret {
   color: var(--color-text-primary);
 }
 
-/* Messages area - we'll repurpose for transcript display in sidebar? */
-.messages {
-  /* The transcript is a product requirement, not decoration: it stays on the
-     screen. It used to be hidden here with a note about replacing it with a
-     different layout, and no such layout was ever built. */
+/* The microphone switch (M1). ON means the microphone may capture, which the
+   world already codes as Signal Blue: "the colour of the microphone
+   capturing." It is never red, because red is reserved for a cut. OFF falls
+   back to the secondary panel fill, so the state is legible from colour alone
+   without reading the label. */
+.composer button.mic-on {
+  background-color: var(--color-transcribing);
+  border-color: var(--color-transcribing);
+  color: var(--color-ground);
+}
+.composer button.mic-on:hover:not(:disabled),
+.composer button.mic-on:focus-visible:not(:disabled) {
+  background-color: var(--color-transcribing);
+  border-color: var(--color-ink);
+  color: var(--color-ground);
+}
+
+/* ── The center column: the dialogue and the activity log ──────────────────── */
+.content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--color-background-panel);
+}
+
+/* Shared panel frame: a heading with a hairline, and a scrolling body. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+  padding: 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--size-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+}
+
+.panel-heading strong {
+  color: var(--color-text-primary);
+  font-weight: var(--weight-medium);
+}
+
+.panel-heading span {
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+  text-transform: none;
+}
+
+.panel-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+.panel-empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  letter-spacing: 0.06em;
+}
+
+/* The dialogue takes the greater share of the column; the log sits under it. */
+.dialogue {
+  flex: 3 1 0;
+}
+
+.activity {
+  flex: 2 1 0;
+  border-top: 1px solid var(--color-border);
+}
+
+/* Dialogue entries: the words on both sides, never chat bubbles. */
+.dialogue-entry {
+  min-width: 0;
+  margin: 0 0 0.625rem;
+  padding-left: 0.5rem;
+  border-left: 1px solid transparent;
+}
+
+.dialogue-entry:last-child {
+  margin-bottom: 0;
+}
+
+/* The entry the conversation is on right now, marked by position the way the
+   index marks its current row. */
+.dialogue-entry.current {
+  border-left-color: var(--color-thinking);
+}
+
+.dialogue-role {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--color-text-secondary);
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dialogue-source {
+  /* Signal Blue lifted: the base token is under AA at this size on the panel. */
+  color: hsl(210, 80%, 62%);
+  font-size: var(--size-caption);
+}
+
+.dialogue-text {
+  margin: 0.125rem 0 0;
+  overflow-wrap: break-word;
+}
+
+/* A partial transcript is provisional: it reads quieter than the words it will
+   settle into. */
+.dialogue-entry.transient .dialogue-text {
+  color: var(--color-text-secondary);
+}
+
+.dialogue-text.pending {
+  color: var(--color-text-secondary);
+}
+
+/* ── The activity log ─────────────────────────────────────────────────────── */
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 4.25rem 2.25rem minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.0625rem 0;
+}
+
+.log-time {
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.log-kind {
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.log-text {
+  color: var(--color-text-primary);
+  overflow-wrap: anywhere;
+}
+
+/* The tag carries the same phase code the field and the colour strip use, so a
+   line's category reads in the world's own vocabulary. Red is a cut only. The
+   blue and red steps are lifted from their base tokens, which measure under AA
+   for 11px text on panel void. */
+.log-row.system .log-kind {
+  color: var(--color-text-secondary);
+}
+.log-row.system .log-text {
+  color: var(--color-text-secondary);
+}
+.log-row.stt .log-kind {
+  color: hsl(210, 80%, 62%);
+}
+.log-row.llm .log-kind {
+  color: var(--color-thinking);
+}
+.log-row.tts .log-kind {
+  color: var(--color-speaking);
+}
+.log-row.cut .log-kind {
+  color: hsl(0, 80%, 64%);
+}
+.log-row.error .log-kind {
+  color: hsl(0, 70%, 70%);
+}
+/* Acting is the thinking phase extended, so it borrows the same code. The tool
+   line itself stays quiet: the mechanism is not the message. */
+.log-row.tool .log-kind {
+  color: var(--color-ink);
+}
+.log-row.gate .log-kind {
+  color: var(--color-thinking);
+}
+
+/* ── The approval gate ────────────────────────────────────────────────────── */
+/* Above the composer, in the conversation's own column: it interrupts a turn,
+   so it belongs where the turn is, not floating over it.
+   Named `gate-panel`, not `gate`: `.gate` is already the log row's kind class,
+   and a bare panel rule would style every gate line in the activity log. */
+.gate-panel {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  flex: 0 1 auto;
-  max-height: 26vh;
-  padding: 0 1.5rem;
-  overflow-y: auto;
+  padding: 0.625rem 0.75rem;
+  border-top: 1px solid var(--color-border);
+  background-color: var(--color-background-panel);
+}
+
+.gate-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: var(--size-caption);
+}
+
+.gate-head strong {
+  color: var(--color-thinking);
+  font-family: var(--font-mono);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.gate-head span {
+  color: var(--color-text-secondary);
+}
+
+/* The exact thing being approved. Mono, because it is a command, and bounded,
+   because it can be a whole file. */
+.gate-action {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  max-height: 8rem;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-ground);
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--size-small);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.gate-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.gate-actions button {
+  flex: 0 0 auto;
+  padding: 0.5rem 0.875rem;
+  font-family: var(--font-mono);
+  font-size: var(--size-caption);
+  font-weight: var(--weight-medium);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.gate-actions button.secondary {
+  background-color: var(--color-background-panel);
+  color: var(--color-text-primary);
+}
+.gate-actions button.secondary:hover,
+.gate-actions button.secondary:focus-visible {
+  background-color: hsl(0, 0%, 15%);
+}
+
+/* Approving is the deliberate, consequential act, so it carries the amber the
+   world already uses for attention. Never red: red is a cut. */
+.gate-actions button.primary {
+  background-color: var(--color-thinking);
+  border-color: var(--color-thinking);
+  color: var(--color-ground);
+}
+.gate-actions button.primary:hover {
+  border-color: var(--color-ink);
+}
+
+.gate-actions button:focus-visible {
+  outline: 1px solid var(--color-thinking);
+  outline-offset: 2px;
+}
+/* An amber ring on an amber fill says nothing. */
+.gate-actions button.primary:focus-visible {
+  outline-color: var(--color-ink);
 }
 
 /* Notice and error styles */
 .notice,
 .error {
-  padding: 1rem;
-  margin: 1rem 0;
+  padding: 0.5rem 0.75rem;
+  margin: 0.375rem 0.75rem;
   border-radius: 0;
   border: 1px solid transparent;
 }
@@ -516,7 +822,7 @@ caret {
   background-color: var(--color-background-panel);
   border: 1px solid var(--color-border);
   border-radius: 0;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
   overflow: hidden;
 }
 
@@ -526,8 +832,8 @@ caret {
   align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  padding: 0.5rem 0.75rem;
-  font-size: var(--size-label);
+  padding: 0.3rem 0.5rem;
+  font-size: var(--size-caption);
   font-weight: var(--weight-medium);
   border-bottom: 1px solid var(--color-border);
 }
@@ -542,16 +848,16 @@ caret {
 .vadPanel dl {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.375rem;
   margin: 0;
-  padding: 0.75rem;
+  padding: 0.5rem;
 }
 
 .latencyPanel dl div,
 .vadPanel dl div {
   background-color: var(--color-background-panel);
   border-radius: 0;
-  padding: 0.5rem;
+  padding: 0.375rem;
 }
 
 .latencyPanel dt,
@@ -563,7 +869,7 @@ caret {
 
 .latencyPanel dd,
 .vadPanel dd {
-  font-size: var(--size-body);
+  font-size: var(--size-caption);
   font-variant-numeric: tabular-nums;
   font-family: var(--font-mono);
   margin: 0;
@@ -571,35 +877,18 @@ caret {
 
 /* Responsive adjustments */
 @media (max-width: 1024px) {
+  /* Below this width the world stacks, and the first view is allowed to be a
+     page rather than a single screen: the shell grows back to its natural
+     height so nothing is clipped. The desktop no-scroll rule applies only to
+     the three-column layout above 1024px. */
+  .shell {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
   .main {
     flex-direction: column;
-  }
-  .nav,
-  .sidebar {
-    width: 100%;
-    max-width: none;
-    border-right: none;
-    border-left: none;
-  }
-  .nav {
-    border-bottom: 1px solid var(--color-border);
-    height: 200px;
-  }
-  .sidebar {
-    border-top: 1px solid var(--color-border);
-    height: 200px;
-  }
-  .plot-container {
-    flex: 1;
-    min-height: 300px;
-  }
-}
-
-@media (max-width: 900px) {
-  /* Three columns do not survive a narrow viewport: stack them and let the
-     shell grow instead of clipping the readout behind the composer. */
-  .main {
-    flex-direction: column;
+    min-height: 0;
     overflow: visible;
   }
   .nav {
@@ -607,15 +896,51 @@ caret {
     max-width: none;
     min-width: 0;
     max-height: 30vh;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
   }
-  .sidebar {
+  /* The conversation keeps a bounded height so its own panels still scroll. */
+  .content {
+    flex: none;
+    height: 68vh;
+    min-height: 360px;
+    border-bottom: 1px solid var(--color-border);
+  }
+  /* The rail turns into a row: the field beside the readout and the numbers. */
+  .jarvis {
+    flex-direction: row;
     width: 100%;
-    max-width: none;
+    overflow: visible;
     border-left: none;
-    border-top: 1px solid var(--color-border);
   }
   .plot-container {
-    min-height: 320px;
+    flex: 0 0 240px;
+    width: 240px;
+    height: 240px;
+    border-right: 1px solid var(--color-border);
+    border-bottom: none;
+  }
+  .jarvis-side {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  /* Narrow enough that the field and the numbers no longer share a row. */
+  .content {
+    height: 74vh;
+  }
+  .jarvis {
+    flex-direction: column;
+  }
+  .plot-container {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 44vw;
+    min-height: 180px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
   }
 }
 
@@ -631,12 +956,36 @@ caret {
   .composer button {
     width: 100%;
   }
+  /* In a column, `flex: 1 1 200px` applies its basis to the input's
+     height and stretches it to 200px. Let the content size it instead. */
+  .composer input {
+    flex: 1 1 auto;
+  }
+}
+
+/* Touch input: the pointer decides the target, not the screen width. A
+   mouse keeps the compact control; a finger gets the 44px platform
+   minimum (iOS HIG, Material) without changing the layout for pointer
+   users. */
+@media (pointer: coarse) {
+  .composer button,
+  .nav li button,
+  .playbackButton {
+    min-height: 2.75rem;
+  }
+  .composer button {
+    /* A press-and-hold on touch must not raise the selection or callout
+       UI, and double-tap zoom is never wanted on a control. */
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+  }
 }
 
 /* ── Catalog entries in the index ─────────────────────────────────────────── */
 .nav-empty {
   font-family: var(--font-mono);
-  font-size: var(--size-small, 0.8125rem);
+  font-size: var(--size-small);
   letter-spacing: 0.06em;
   color: var(--color-text-secondary);
   margin: 0;
@@ -653,11 +1002,11 @@ caret {
 
 .nav li button {
   display: grid;
-  grid-template-columns: 3.25rem 1fr;
+  grid-template-columns: 2.75rem 1fr;
   align-items: baseline;
-  gap: 0.75rem;
+  gap: 0.5rem;
   width: 100%;
-  padding: 0.5rem 0.625rem;
+  padding: 0.375rem 0.5rem;
   text-align: left;
   background: transparent;
   border: 0;
@@ -667,11 +1016,14 @@ caret {
   font: inherit;
   cursor: pointer;
   transition: color 160ms cubic-bezier(0.16, 1, 0.3, 1),
-    border-color 160ms cubic-bezier(0.16, 1, 0.3, 1);
+    border-color 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    background-color 160ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.nav li button:hover {
+.nav li button:hover,
+.nav li button:focus-visible {
   color: var(--color-ink);
+  background-color: hsl(0, 0%, 15%);
 }
 
 .nav li button:focus-visible {
@@ -697,35 +1049,27 @@ caret {
 
 .nav-fac {
   font-family: var(--font-mono);
-  font-size: var(--size-small, 0.8125rem);
+  font-size: var(--size-small);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.04em;
 }
 
 .nav-preview {
-  font-size: var(--size-small, 0.8125rem);
+  font-size: var(--size-small);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 /* ── Rendered by the page with no styling of their own until now ───────────── */
-.empty {
-  font-family: var(--font-mono);
-  font-size: var(--size-small);
-  letter-spacing: 0.06em;
-  color: var(--color-text-secondary);
-  margin: 0;
-}
-
 .playbackButton {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  margin: 0.5rem 0;
-  padding: 0.75rem 1.5rem;
+  margin: 0.375rem 0.75rem;
+  padding: 0.5rem 0.875rem;
   font-family: var(--font-mono);
-  font-size: var(--size-label);
+  font-size: var(--size-caption);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-cut);

@@ -303,3 +303,86 @@ test("config defaults TTS to disabled and enables it when a TTS key exists", () 
   });
   assert.equal(explicitlyDisabled.tts.enabled, false);
 });
+
+test("config keeps tools off, and harmless, unless they are asked for", () => {
+  const config = loadAgentConfig(selfHostedEnv);
+
+   assert.deepEqual(config.tools, {
+    enabled: false,
+    sandboxBaseUrl: "http://127.0.0.1:8790",
+    maxIterations: 12,
+    actionTimeoutMs: 120_000,
+    maxOutputBytes: 262_144,
+    channelHost: "127.0.0.1",
+    channelPort: 8788,
+    approval: "sandbox",
+    hostExecutorDryRun: true
+  });
+});
+
+test("config asks for approval only where the default says to", () => {
+  assert.equal(loadAgentConfig(selfHostedEnv).tools.approval, "sandbox");
+
+  assert.equal(
+    loadAgentConfig({ ...selfHostedEnv, TOOLS_APPROVAL: "all" }).tools.approval,
+    "all"
+  );
+
+  assert.throws(
+    () => loadAgentConfig({ ...selfHostedEnv, TOOLS_APPROVAL: "sometimes" }),
+    /TOOLS_APPROVAL/
+  );
+
+  const channel = loadAgentConfig({
+    ...selfHostedEnv,
+    TOOLS_HOST: "0.0.0.0",
+    TOOLS_PORT: "9999"
+  });
+  assert.equal(channel.tools.channelHost, "0.0.0.0");
+  assert.equal(channel.tools.channelPort, 9_999);
+});
+
+test("config refuses to enable tools without the sandbox credential", () => {
+  assert.throws(
+    () => loadAgentConfig({ ...selfHostedEnv, TOOLS_ENABLED: "true" }),
+    /SANDBOX_TOKEN is required when TOOLS_ENABLED=true/
+  );
+});
+
+test("config parses the tool ceiling knobs and trims blanks to the defaults", () => {
+  const config = loadAgentConfig({
+    ...selfHostedEnv,
+    TOOLS_ENABLED: "1",
+    SANDBOX_TOKEN: "  token-value  ",
+    SANDBOX_BASE_URL: " http://127.0.0.1:9999 ",
+    TOOLS_MAX_ITERATIONS: "4",
+    TOOLS_ACTION_TIMEOUT_MS: "   ",
+    TOOLS_MAX_OUTPUT_BYTES: "4096"
+  });
+
+   assert.deepEqual(config.tools, {
+    enabled: true,
+    sandboxBaseUrl: "http://127.0.0.1:9999",
+    sandboxToken: "token-value",
+    maxIterations: 4,
+    actionTimeoutMs: 120_000,
+    maxOutputBytes: 4_096,
+    channelHost: "127.0.0.1",
+    channelPort: 8788,
+    approval: "sandbox",
+    hostExecutorDryRun: true
+  });
+});
+
+test("config rejects a tool iteration count outside its meaningful range", () => {
+  assert.throws(
+    () =>
+      loadAgentConfig({
+        ...selfHostedEnv,
+        TOOLS_ENABLED: "true",
+        SANDBOX_TOKEN: "token",
+        TOOLS_MAX_ITERATIONS: "0"
+      }),
+    /TOOLS_MAX_ITERATIONS/
+  );
+});

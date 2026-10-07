@@ -61,6 +61,38 @@ services:
       GATEWAY_PORT: "${GATEWAY_PORT:-8787}"
       ALLOWED_ORIGINS: "${ALLOWED_ORIGINS:-http://localhost:3000}"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
+      # Agentic actions. Off by default: with TOOLS_ENABLED unset the agent only
+      # speaks, exactly as it did before this feature existed. Turned on, it runs
+      # tools through the sandbox below, which it reaches on the host loopback
+      # through the forwarder.
+      TOOLS_ENABLED: "${TOOLS_ENABLED:-false}"
+      SANDBOX_BASE_URL: "${SANDBOX_BASE_URL:-http://127.0.0.1:8790}"
+      SANDBOX_TOKEN: "${SANDBOX_TOKEN:-}"
+      TOOLS_MAX_ITERATIONS: "${TOOLS_MAX_ITERATIONS:-12}"
+      TOOLS_ACTION_TIMEOUT_MS: "${TOOLS_ACTION_TIMEOUT_MS:-120000}"
+      TOOLS_MAX_OUTPUT_BYTES: "${TOOLS_MAX_OUTPUT_BYTES:-262144}"
+      # Where the browser connects to watch tool activity and answer approval
+      # requests. Loopback only, and reachable from the host without publishing
+      # a port because the agent shares the host network namespace.
+      TOOLS_HOST: "${TOOLS_HOST:-127.0.0.1}"
+      TOOLS_PORT: "${TOOLS_PORT:-8788}"
+      # `sandbox` runs sandbox-confined tools without asking; `all` asks before
+      # every tool call.
+      TOOLS_APPROVAL: "${TOOLS_APPROVAL:-sandbox}"
+      # The host executor, when you have started one yourself. Both empty means
+      # escalation does not exist: the model is not even told it could. In the
+      # compose stack, the host-executor service listens on 127.0.0.1:8791.
+      HOST_EXECUTOR_BASE_URL: "${HOST_EXECUTOR_BASE_URL:-http://127.0.0.1:8791}"
+      HOST_EXECUTOR_TOKEN: "${HOST_EXECUTOR_TOKEN:-}"
+      # Dry-run keeps host actions in the container until you are ready to grant
+      # real SSH access. Defaults to true in the agent; set to false here only
+      # when the executor is configured for SSH.
+      HOST_EXECUTOR_DRY_RUN: "${HOST_EXECUTOR_DRY_RUN:-true}"
+      # Commands the host executor will run. Patterns use glob matching,
+      # e.g. "echo *,git status". Empty means nothing may run.
+      HOST_EXECUTOR_ALLOWED_COMMANDS: "${HOST_EXECUTOR_ALLOWED_COMMANDS:-}"
+      # Domains the browse tool may fetch. Empty means no browsing at all.
+      HOST_EXECUTOR_EGRESS_ALLOWLIST: "${HOST_EXECUTOR_EGRESS_ALLOWLIST:-}"
     # OmniRoute listens on the host. It is reached by host address, not by the
     # `host.docker.internal` alias: under rootless Docker that alias maps to a
     # namespace where host-bound services refuse connections.
@@ -92,6 +124,7 @@ services:
       # when the variable is unset in `.env`.
       args:
         NEXT_PUBLIC_GATEWAY_WS_URL: "${NEXT_PUBLIC_GATEWAY_WS_URL:-ws://localhost:8787}"
+        NEXT_PUBLIC_TOOLS_WS_URL: "${NEXT_PUBLIC_TOOLS_WS_URL:-ws://localhost:8788}"
         NEXT_PUBLIC_VAD_ADAPTIVE_ENABLED: "${NEXT_PUBLIC_VAD_ADAPTIVE_ENABLED:-true}"
         NEXT_PUBLIC_VAD_CALIBRATION_MS: "${NEXT_PUBLIC_VAD_CALIBRATION_MS:-1000}"
         NEXT_PUBLIC_VAD_NOISE_FLOOR_SMOOTHING: "${NEXT_PUBLIC_VAD_NOISE_FLOOR_SMOOTHING:-0.08}"
@@ -177,5 +210,177 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # The boundary the agent's commands run inside: its own container with the
+  # tools a coding turn needs, on a network with no route out.
+  sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    environment:
+      SANDBOX_HOST: "0.0.0.0"
+      SANDBOX_PORT: "8790"
+      SANDBOX_WORKSPACE: "/workspace"
+      # Required, with no default on purpose: an action API that runs commands
+      # with no credential is worse than one that refuses to start. Put a value
+      # in .env (see env.example.template).
+      SANDBOX_TOKEN: "${SANDBOX_TOKEN:?SANDBOX_TOKEN is required - see env.example.template}"
+      SANDBOX_ACTION_TIMEOUT_MS: "${SANDBOX_ACTION_TIMEOUT_MS:-120000}"
+      SANDBOX_MAX_OUTPUT_BYTES: "${SANDBOX_MAX_OUTPUT_BYTES:-262144}"
+      # The root filesystem is read-only, so tools put their caches and temp
+      # files under the tmpfs mounted at /tmp instead of $HOME.
+      HOME: "/tmp"
+      # The only way out. The proxy decides; the sandbox cannot go around it.
+      HTTP_PROXY: "http://egress-proxy:8080"
+      HTTPS_PROXY: "http://egress-proxy:8080"
+      http_proxy: "http://egress-proxy:8080"
+      https_proxy: "http://egress-proxy:8080"
+      NO_PROXY: ""
+    volumes:
+      # The one directory the agent can touch. Never the repository, never home.
+      #
+      # Default is a named volume: Docker seeds it from the image, so it is owned
+      # by the container's unprivileged user and just works — a host bind mount
+      # does not, because rootless Docker maps the container's uid 1000 to a
+      # subordinate host uid, not to yours. Set SANDBOX_WORKSPACE_DIR=./workspace
+      # to bind a host directory you can browse, and make it writable by the
+      # mapped user (see docs/architecture.md).
+      - "${SANDBOX_WORKSPACE_DIR:-sandbox-workspace}:/workspace"
+    # Only the internal network. No published port either: a container on an
+    # internal network cannot have one, which is exactly what keeps the sandbox
+    # off the host's reach — the agent talks to the forwarder below instead.
+    networks:
+      - sandbox-net
+    # The container enforces what the action server does not police itself: no
+    # capabilities, no new privileges, a read-only root, and bounded memory,
+    # CPU and process count.
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: "${SANDBOX_MEMORY_LIMIT:-1g}"
+    cpus: "${SANDBOX_CPUS:-2}"
+    pids_limit: ${SANDBOX_PIDS_LIMIT:-256}
+    restart: unless-stopped
+
+  # The sandbox's front door. It carries one port from the published loopback
+  # address to the sandbox on the internal network, and nothing else: it is not a
+  # proxy and not a router, so the sandbox gains no route out through it.
+  sandbox-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile.sandbox
+    command: ["node", "dist/forward.cjs"]
+    environment:
+      FORWARD_LISTEN_HOST: "0.0.0.0"
+      FORWARD_LISTEN_PORT: "8790"
+      FORWARD_TARGET_HOST: "sandbox"
+      FORWARD_TARGET_PORT: "8790"
+    # Published on loopback only: the agent shares the host network namespace and
+    # reaches the sandbox there, exactly as it reaches Speaches.
+    ports:
+      - "127.0.0.1:8790:8790"
+    networks:
+      # Internal, to reach the sandbox by name.
+      - sandbox-net
+      # A normal bridge, because a container on an internal network cannot
+      # publish a port at all.
+      - egress-net
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: "${SANDBOX_GATEWAY_MEMORY_LIMIT:-128m}"
+    cpus: "${SANDBOX_GATEWAY_CPUS:-0.25}"
+    pids_limit: 128
+    restart: unless-stopped
+
+  # The sandbox's only exit. It joins the internal network the sandbox is on and
+  # a normal bridge of its own, so it can reach out where the sandbox cannot.
+  egress-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.egress-proxy
+    environment:
+      EGRESS_HOST: "0.0.0.0"
+      EGRESS_PORT: "8080"
+      # Empty means no egress at all, which is the documented default.
+      EGRESS_ALLOWED_DOMAINS: "${SANDBOX_ALLOWED_DOMAINS:-}"
+    networks:
+      - sandbox-net
+      - egress-net
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: "${EGRESS_MEMORY_LIMIT:-256m}"
+    cpus: "${EGRESS_CPUS:-0.5}"
+    pids_limit: 128
+    restart: unless-stopped
+
+  # The host executor: an optional process the agent reaches for actions that
+  # leave the sandbox. It runs commands in its own container in dry-run mode, or
+  # over SSH to the operator's machine when HOST_EXECUTOR_DRY_RUN is false and
+  # HOST_EXECUTOR_HOST is set. The operator starts it and stops it; nothing in
+  # this stack starts it for you.
+  host-executor:
+    build:
+      context: .
+      dockerfile: Dockerfile.host-executor
+    environment:
+      HOST_EXECUTOR_HOST: "0.0.0.0"
+      HOST_EXECUTOR_PORT: "${HOST_EXECUTOR_PORT:-8791}"
+      # Required: the token the agent presents. No default on purpose.
+      HOST_EXECUTOR_TOKEN: "${HOST_EXECUTOR_TOKEN:?HOST_EXECUTOR_TOKEN is required - see env.example.template}"
+      HOST_EXECUTOR_ROOT: "${HOST_EXECUTOR_ROOT:-/workspace}"
+      # Dry-run keeps host actions in this container until you set this to false
+      # and configure HOST_EXECUTOR_HOST for SSH.
+      HOST_EXECUTOR_DRY_RUN: "${HOST_EXECUTOR_DRY_RUN:-true}"
+      # Command allowlist. Patterns use glob matching. Empty means nothing runs.
+      HOST_EXECUTOR_ALLOWED_COMMANDS: "${HOST_EXECUTOR_ALLOWED_COMMANDS:-}"
+      # Domains the browse tool may fetch. Empty means no browsing at all.
+      HOST_EXECUTOR_EGRESS_ALLOWLIST: "${HOST_EXECUTOR_EGRESS_ALLOWLIST:-}"
+      HOST_EXECUTOR_TIMEOUT_MS: "${HOST_EXECUTOR_TIMEOUT_MS:-120000}"
+      HOST_EXECUTOR_MAX_OUTPUT_BYTES: "${HOST_EXECUTOR_MAX_OUTPUT_BYTES:-262144}"
+      # The browserbot container, for host_interact. Internal only (not published);
+      # the host executor proxies /act requests to it. Leave empty to disable
+      # browser automation — host_interact will be refused with an actionable error.
+      BROWSERBOT_BASE_URL: "${BROWSERBOT_BASE_URL:-http://browserbot:8792}"
+    ports:
+      - "127.0.0.1:${HOST_EXECUTOR_PORT:-8791}:8791"
+    volumes:
+      - host-exec-workspace:/workspace
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: "${HOST_EXECUTOR_MEMORY_LIMIT:-512m}"
+    cpus: "${HOST_EXECUTOR_CPUS:-1}"
+    pids_limit: 64
+    restart: unless-stopped
+
 volumes:
   speaches-cache:
+  sandbox-workspace:
+  host-exec-workspace:
+
+networks:
+  # `internal: true` removes the route out: a container on this network cannot
+  # reach anything beyond it. Docker enforces that, so no iptables rules and no
+  # extra capabilities are involved.
+  sandbox-net:
+    internal: true
+  # A normal bridge, for the proxy's own egress.
+  egress-net:
+    driver: bridge

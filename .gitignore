@@ -15,5 +15,13 @@ coverage
 # Logs
 *.log
 
+# The optional host directory for the sandbox's workspace. The default is a
+# Docker named volume; this path is used only when SANDBOX_WORKSPACE_DIR points
+# at it, and everything the agent writes then lands here, not in source.
+workspace/
+
+# Agent metadata (taste profiles, plans, scratchpad) — not project source.
+.commandcode/
+
 # Note: apps/, packages/, Dockerfile.gateway and Dockerfile.web are vendored
 # sources and are intentionally NOT ignored.

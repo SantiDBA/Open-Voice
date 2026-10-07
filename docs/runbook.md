@@ -330,6 +330,12 @@ pauses and shows a gate panel in the browser. Click **Approve** to run it, or
 **Deny** to refuse. If nobody answers within 60 seconds, the answer is **deny**.
 Closing the page denies everything pending.
 
+When `host_browse` or `host_interact` is blocked because a domain is not on the
+egress allowlist, the gate panel changes: instead of a simple Approve/Deny, it
+asks "Add domain?". Click **Add domain** to add the domain to the allowlist
+(persisted in the host executor's workspace) and retry the action. Click **Deny**
+to refuse without adding it.
+
 ### Auditing what the agent did
 
 Every tool call is logged as a structured JSON line:
@@ -351,7 +357,8 @@ dry-run mode was on.
 | `host_exec` is refused with `not_allowed` | The command does not match `HOST_EXECUTOR_ALLOWED_COMMANDS` | Add the command to the allowlist, e.g. `git status` |
 | `host_exec` is refused with `compound_command` | The command contains pipes, chains, redirects, or substitutions | Split it into separate `host_exec` calls; each must be a single simple command |
 | `host_browse` is refused with `SSRF protection` | The URL resolves to a private or loopback address | Use a public https domain; the check is on the resolved IP, not the hostname |
-| `host_search` is refused with "egress allowlist" | `HOST_EXECUTOR_EGRESS_ALLOWLIST` is empty or does not include a DuckDuckGo domain | Add `*.duckduckgo.com` to enable search |
+| `host_browse` is refused with "egress allowlist" | The target domain is not on `HOST_EXECUTOR_EGRESS_ALLOWLIST` | The gate panel offers an **Add domain** button — click it to add and retry. Or set `HOST_EXECUTOR_EGRESS_ALLOWLIST=domain.com` in `.env` |
+| `host_search` is refused with "egress allowlist" | `HOST_EXECUTOR_EGRESS_ALLOWLIST` is empty or does not include `html.duckduckgo.com` | Add `html.duckduckgo.com` to `.env` and recreate the host executor |
 | The tool-activity panel never appears | Tools are not enabled | Set `TOOLS_ENABLED=true` and `SANDBOX_TOKEN` in `.env` |
 
 ## 8. Common failures

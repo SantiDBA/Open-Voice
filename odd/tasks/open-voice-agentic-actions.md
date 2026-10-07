@@ -267,15 +267,30 @@ and `169.254.169.254`; `host_search` refused when the egress allowlist is empty.
   `HOST_EXECUTOR_HOST` was not exercised outside dry-run's container namespace.
   The code path exists but must be tested by the operator with their own SSH
   keys.
-- **`auto/chat` model routing** remains an open risk: T0 confirmed this
-  particular run landed on `openai/gpt-oss-120b`; pinning `LLM_MODEL` is
-  recommended for production.
+- **`auto/chat` model routing** was verified to resolve to `openai/gpt-oss-20b`
+  (20B params) on this run. A larger 120B variant is available via `auto/pro-chat`;
+  pin `LLM_MODEL` for production.
 - **Concurrency:** two browser tabs both connected to the tool channel would
   each see the gate; whichever answers first wins. Not tested.
 - **Reconnection during a pending gate:** the client retries every 3s; a
   channel that drops while a gate is pending is unit-tested (server denies) but
   not exercised end-to-end.
 - **Parallel tool calls** were not tested — only sequential calls.
+
+## Dynamic egress allowlist (post-T8 improvement)
+
+**Done.** When `host_browse` or `host_interact` is refused because a domain is
+not on `HOST_EXECUTOR_EGRESS_ALLOWLIST`, the tool loop now catches the
+`egress_not_allowed` error and sends a second gate.request to the browser:
+"Add domain?" — with the domain pre-filled. Approving calls
+`POST /allowlist` on the host executor (which persists the domain to
+`/workspace/.allowlist_additions` in the named volume) and retries the browse
+automatically. The persisted allowlist survives container restarts.
+
+Verified: browsing `example.com` (not initially allowlisted) → 403
+`egress_not_allowed` → approved via gate → `POST /allowlist` 200 → retry browse
+200 with HTML content. After `docker compose up --force-recreate
+host-executor`, the domain is still allowlisted from the persisted file.
 
 ## Out of scope (explicit)
 

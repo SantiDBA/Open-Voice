@@ -10,6 +10,7 @@ import { createToolAudit, type AuditSink } from "./audit.js";
 import { ToolPolicyError, planToolCall } from "./policy.js";
 import { HOST_BROWSE, HOST_FILE_READ, HOST_FILE_WRITE, HOST_INTERACT, HOST_SEARCH, HOST_TOOL, TOOL_DEFINITIONS, TOOL_GUIDANCE, toolPayload } from "./registry.js";
 import { SandboxError, type SandboxClient } from "./sandbox-client.js";
+import { createHostClient, type HostClient } from "./host-client.js";
 import type { ToolReporter } from "./reporter.js";
 
 /**
@@ -56,8 +57,10 @@ export interface ToolLoopOptions {
   /**
    * The host executor, when one is configured. Absent means the agent offers no
    * way to reach the machine, so the model is never told the option exists.
+   * Unlike the sandbox client, the host client can also add egress domains at
+   * runtime — when the user approves adding a domain that was refused.
    */
-  host?: SandboxClient;
+  host?: HostClient;
   /**
    * When true, host actions run in the container namespace, not on the machine.
    * The loop includes this in the audit trail so the operator can see at a
@@ -349,6 +352,130 @@ export class ToolLoopLlmProvider implements LLMProvider {
         });
         return serialize({ status: "cancelled", error: "the action was interrupted" });
       }
+
+      // --- Egress allowlist: offer to add the domain and retry once. ---
+      if (
+        error instanceof SandboxError &&
+        error.code === "egress_not_allowed" &&
+        this.options.host
+      ) {
+        const domain = extractEgressDomain(error.message);
+        if (domain) {
+          const decision = await this.options.reporter.confirm({
+            toolCallId: call.id,
+            tool: planned.tool,
+            action: "add_egress_domain",
+            arguments: { domain },
+            reason: `The domain "${domain}" is not on the egress allowlist. Add it so the site can be visited?`
+          });
+
+          if (signal.aborted) {
+            return serialize({ status: "cancelled", error: "the action was interrupted" });
+          }
+
+          if (decision === "approve") {
+            await this.options.host.addEgressDomain(domain);
+
+            const retryActionId = randomUUID();
+            const retryRequest = {
+              ...planned.request,
+              actionId: retryActionId,
+              timeoutMs:
+                typeof planned.request["timeoutMs"] === "number"
+                  ? (planned.request["timeoutMs"] as number)
+                  : this.options.actionTimeoutMs
+            };
+
+            this.options.reporter.call({
+              toolCallId: call.id,
+              tool: planned.tool,
+              action: planned.action,
+              arguments: planned.request,
+              enforcement: planned.enforcement,
+              approval: "approved"
+            });
+
+            try {
+              const retryOutcome = await runner.run(retryRequest, retryActionId, signal);
+              this.audit.record({
+                toolCallId: call.id,
+                tool: planned.tool,
+                action: planned.action,
+                arguments: planned.request,
+                outcome: retryOutcome.status,
+                exitCode:
+                  typeof retryOutcome["exitCode"] === "number"
+                    ? retryOutcome["exitCode"]
+                    : null,
+                durationMs: Date.now() - started,
+                ...(planned.runsOn === "host" && this.options.hostDryRun
+                  ? { dryRun: true }
+                  : {}),
+                detail: `retried after user added ${domain} to egress allowlist`
+              });
+              this.options.reporter.result({
+                toolCallId: call.id,
+                tool: planned.tool,
+                outcome: retryOutcome.status,
+                exitCode:
+                  typeof retryOutcome["exitCode"] === "number"
+                    ? retryOutcome["exitCode"]
+                    : null,
+                durationMs: Date.now() - started
+              });
+              return serialize(bound(retryOutcome, this.options.maxOutputBytes));
+            } catch (retryError) {
+              const retryDetail =
+                retryError instanceof Error ? retryError.message : String(retryError);
+              this.audit.record({
+                toolCallId: call.id,
+                tool: planned.tool,
+                action: planned.action,
+                arguments: planned.request,
+                outcome: "error",
+                durationMs: Date.now() - started,
+                ...(planned.runsOn === "host" && this.options.hostDryRun
+                  ? { dryRun: true }
+                  : {}),
+                detail: `retry after adding ${domain}: ${retryDetail}`
+              });
+              this.options.reporter.result({
+                toolCallId: call.id,
+                tool: planned.tool,
+                outcome: "error",
+                durationMs: Date.now() - started
+              });
+              return serialize({ status: "error", error: retryDetail });
+            }
+          }
+
+          // User denied adding the domain.
+          this.audit.record({
+            toolCallId: call.id,
+            tool: planned.tool,
+            action: planned.action,
+            arguments: planned.request,
+            outcome: "denied",
+            durationMs: Date.now() - started,
+            ...(planned.runsOn === "host" && this.options.hostDryRun
+              ? { dryRun: true }
+              : {}),
+            detail: `egress: user did not approve adding ${domain}`
+          });
+          this.options.reporter.result({
+            toolCallId: call.id,
+            tool: planned.tool,
+            outcome: "denied",
+            durationMs: Date.now() - started
+          });
+          return serialize({
+            status: "denied",
+            error: `The domain ${domain} was not added to the egress allowlist.`
+          });
+        }
+      }
+
+      // --- Generic error fallback. ---
       const detail = error instanceof Error ? error.message : String(error);
       this.audit.record({
         toolCallId: call.id,
@@ -385,6 +512,12 @@ interface OpenAiChunk {
     };
     finish_reason?: string | null;
   }>;
+}
+
+/** Extracts the offending domain from an egress_not_allowed error message. */
+function extractEgressDomain(message: string): string | null {
+  const match = message.match(/^(.+?)\s+is not on the egress allowlist/);
+  return match ? match[1] : null;
 }
 
 /** Appends the tool guidance to the existing system message, or adds one. */

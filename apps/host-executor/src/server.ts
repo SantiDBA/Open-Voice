@@ -16,9 +16,23 @@ import { isBlockedAddress, isDomainAllowed, normalizeHost } from "@open-voice/eg
 import { CommandRefused, assertRunnable } from "./allowlist.js";
 import type { HostExecutorConfig } from "./config.js";
 
+/**
+ * Thrown when a domain is not on the egress allowlist. Carries the domain so
+ * the caller (the agent) can offer to add it and retry, instead of just
+ * reporting "I can't browse this site".
+ */
+class EgressNotAllowedError extends Error {
+  constructor(readonly domain: string, message: string) {
+    super(message);
+    this.name = "EgressNotAllowedError";
+  }
+}
+
 export interface HostExecutorHandle {
   readonly port: number;
   close(): Promise<void>;
+  /** Adds a domain to the egress allowlist at runtime. Persisted to disk. */
+  addDomain(domain: string): Promise<void>;
 }
 
 /**
@@ -35,6 +49,15 @@ export async function createHostExecutor(
   config: HostExecutorConfig
 ): Promise<HostExecutorHandle> {
   const running = new Map<string, AbortController>();
+
+  // Merge persisted allowlist additions into the runtime config so that
+  // domains approved by the user in a previous session survive a restart.
+  const persisted = await loadPersistedAllowlist(config.root);
+  for (const domain of persisted) {
+    if (!config.egressAllowlist.includes(domain)) {
+      config.egressAllowlist.push(domain);
+    }
+  }
 
   const server = createServer((request, response) => {
     void handle(request, response, config, running).catch(() => {
@@ -69,6 +92,15 @@ export async function createHostExecutor(
 
   return {
     port: address.port,
+    async addDomain(domain: string) {
+      const normalized = normalizeHost(domain);
+      if (config.egressAllowlist.includes(normalized)) {
+        return;
+      }
+      config.egressAllowlist.push(normalized);
+      await persistDomain(config.root, normalized);
+      log("host_executor.allowlist_added", { domain: normalized });
+    },
     close: () =>
       new Promise<void>((resolve, reject) => {
         for (const controller of running.values()) {
@@ -110,6 +142,11 @@ async function handle(
 
   if (request.method === "POST" && url.pathname === "/exec") {
     await handleAction(request, response, config, running);
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/allowlist") {
+    await handleAllowlist(request, response, config);
     return;
   }
 
@@ -228,6 +265,21 @@ async function handleAction(
       });
       return;
     }
+    if (error instanceof EgressNotAllowedError) {
+      log("host_executor.refused", {
+        actionId,
+        kind,
+        reason: "egress_not_allowed",
+        domain: error.domain
+      });
+      sendJson(response, 403, {
+        ok: false,
+        code: "egress_not_allowed",
+        error: error.message,
+        domain: error.domain
+      });
+      return;
+    }
     // Generic errors from validation (missing fields) or runtime failures.
     if (error instanceof Error) {
       if (error.message.includes("must be a non-empty string") || error.message.includes("must be a string")) {
@@ -254,6 +306,68 @@ async function handleAction(
   } finally {
     running.delete(actionId);
   }
+}
+
+/**
+ * Persisted allowlist additions, written to a file in the host executor's
+ * workspace root so they survive container restarts. The env-var allowlist
+ * is read first; domains added at runtime are appended on top.
+ */
+async function loadPersistedAllowlist(root: string): Promise<string[]> {
+  const file = path.join(root, ".allowlist_additions");
+  try {
+    const content = await fs.readFile(file, "utf8");
+    return content
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+async function persistDomain(root: string, domain: string): Promise<void> {
+  const file = path.join(root, ".allowlist_additions");
+  try {
+    await fs.appendFile(file, `${domain}\n`, "utf8");
+  } catch {
+    // Best effort — the domain is still in the runtime array.
+  }
+}
+
+async function handleAllowlist(
+  request: IncomingMessage,
+  response: ServerResponse,
+  config: HostExecutorConfig
+): Promise<void> {
+  let body: Record<string, unknown>;
+  try {
+    body = await readJsonBody(request);
+  } catch {
+    sendJson(response, 400, { ok: false, code: "invalid_json", error: "body is not valid JSON" });
+    return;
+  }
+
+  const domain = body["domain"];
+  if (typeof domain !== "string" || domain.trim().length === 0) {
+    sendJson(response, 400, {
+      ok: false,
+      code: "invalid_request",
+      error: "domain must be a non-empty string"
+    });
+    return;
+  }
+
+  const normalized = normalizeHost(domain.trim());
+  if (config.egressAllowlist.includes(normalized)) {
+    sendJson(response, 200, { ok: true, domain: normalized, already: true });
+    return;
+  }
+
+  config.egressAllowlist.push(normalized);
+  await persistDomain(config.root, normalized);
+  log("host_executor.allowlist_added", { domain: normalized });
+  sendJson(response, 200, { ok: true, domain: normalized });
 }
 
 interface ExecResult {
@@ -456,8 +570,9 @@ async function runBrowse(
   // SSRF check so that a DNS-rebinding attack cannot bypass the IP filter.
   if (config.egressAllowlist.length > 0) {
     if (!isDomainAllowed(normalizeHost(parsed.hostname), config.egressAllowlist)) {
-      throw new Error(
-        `${normalizeHost(parsed.hostname)} is not on the egress allowlist; add it with HOST_EXECUTOR_EGRESS_ALLOWLIST`
+      throw new EgressNotAllowedError(
+        normalizeHost(parsed.hostname),
+        `${normalizeHost(parsed.hostname)} is not on the egress allowlist`
       );
     }
   }
@@ -531,8 +646,9 @@ async function runSearch(
     );
   }
   if (!isDomainAllowed("html.duckduckgo.com", config.egressAllowlist)) {
-    throw new Error(
-      "html.duckduckgo.com is not on the egress allowlist for searching."
+    throw new EgressNotAllowedError(
+      "html.duckduckgo.com",
+      "html.duckduckgo.com is not on the egress allowlist for searching"
     );
   }
 
@@ -698,8 +814,9 @@ async function runInteract(
     // Egress allowlist check.
     if (config.egressAllowlist.length > 0) {
       if (!isDomainAllowed(normalizeHost(parsed.hostname), config.egressAllowlist)) {
-        throw new Error(
-          `${normalizeHost(parsed.hostname)} is not on the egress allowlist; add it with HOST_EXECUTOR_EGRESS_ALLOWLIST`
+        throw new EgressNotAllowedError(
+          normalizeHost(parsed.hostname),
+          `${normalizeHost(parsed.hostname)} is not on the egress allowlist`
         );
       }
     }

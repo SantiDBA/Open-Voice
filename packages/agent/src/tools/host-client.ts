@@ -19,6 +19,35 @@ export interface HostClientOptions {
   graceMs?: number;
 }
 
-export function createHostClient(options: HostClientOptions): SandboxClient {
-  return createSandboxClient({ ...options, actionPath: "/exec" });
+export interface HostClient extends SandboxClient {
+  /** Adds a domain to the host executor's egress allowlist at runtime. */
+  addEgressDomain(domain: string): Promise<void>;
+}
+
+export function createHostClient(options: HostClientOptions): HostClient {
+  const base = createSandboxClient({ ...options, actionPath: "/exec" });
+  const baseUrl = options.baseUrl.replace(/\/+$/, "");
+  const token = options.token;
+
+  return {
+    ...base,
+    async addEgressDomain(domain: string): Promise<void> {
+      const response = await fetch(`${baseUrl}/allowlist`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ domain })
+      });
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { error?: string }
+          | null;
+        throw new Error(
+          `Could not add ${domain} to the allowlist: ${payload?.error ?? response.status}`
+        );
+      }
+    }
+  };
 }

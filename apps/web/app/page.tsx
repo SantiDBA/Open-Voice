@@ -2309,7 +2309,12 @@ export default function Home() {
           return;
         }
         if (event.type === "gate.request") {
-          appendLog("gate", `approval required · ${event.tool}`);
+          if (event.action === "add_egress_domain") {
+            const domain = typeof event.arguments["domain"] === "string" ? event.arguments["domain"] : "?";
+            appendLog("gate", `approval required · add ${domain} to allowlist`);
+          } else {
+            appendLog("gate", `approval required · ${event.tool}`);
+          }
           setPendingGate(event);
         }
       }
@@ -2672,7 +2677,9 @@ export default function Home() {
               type="button"
               onClick={() => answerGate("approve")}
             >
-              Approve {pendingGate.tool}
+              {pendingGate.action === "add_egress_domain"
+                ? "Add domain"
+                : `Approve ${pendingGate.tool}`}
             </button>
           </div>
         </section>

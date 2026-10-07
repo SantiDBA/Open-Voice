@@ -205,6 +205,9 @@ export function describeGateAction(args: Record<string, unknown>): string {
   if (typeof args["url"] === "string") {
     return args["url"];
   }
+  if (typeof args["domain"] === "string") {
+    return `Add ${args["domain"]} to the egress allowlist`;
+  }
   return JSON.stringify(args, null, 2);
 }
 

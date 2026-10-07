@@ -372,7 +372,8 @@ export const TOOL_GUIDANCE = [
   "- host_interact controls a browser on the user's machine: navigate, click,",
   "  type, scroll, screenshot, read. Every interaction needs approval, and the",
   "  URL is checked against SSRF rules before navigation.",
-  "- If a tool fails or is refused, say what failed plainly instead of guessing a result."
+   "- If a tool fails or is refused, say what failed plainly instead of guessing a result.",
+   "- If a site is not on the egress allowlist, the user may be asked to add it and retry."
 ].join("\n");
 
 /** The tool definition for a name, or undefined when the name is unknown. */
